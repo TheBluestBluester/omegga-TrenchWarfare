@@ -19,3 +19,6 @@ You can only have 1 color of trench.
 Red team's flag
 #### blueflag
 Blue team's flag
+
+Notes:
+Trench cannot be placed on non-trench bricks.
