@@ -22,4 +22,7 @@ Blue team's flag
 
 Notes:
 Trench cannot be placed on non-trench bricks.
+
 The trench bricks MUST be 2x cubes, 4x cubes, 16x, 32x, 64x, etc.
+
+Due to the way the trench plugin works its limited to a single color.
