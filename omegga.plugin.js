@@ -233,99 +233,6 @@ class TrenchWarfare {
 				if(inv.count <= 0) {
 					return;
 				}
-				/*
-				const rel = [hit[0] - pos[0],hit[1] - pos[1],hit[2] - pos[2]]
-				let dir = 0;
-				const deg2rad = Math.PI / 180;
-				const rad2deg = 180 / Math.PI;
-				const diry = Math.atan2(rel[1],rel[0]) * rad2deg;
-				const dist = Math.sqrt(rel[0] * rel[0] + rel[1] * rel[1]);
-				const dirp = Math.atan2(rel[2],dist) * rad2deg;
-				const ny = Math.round(diry / 90) * 90;
-				const np = Math.round(dirp / 90) * 90;
-				let tocheck = true;
-				if(size[0] <= 10) {
-					dir = [
-						Math.cos(ny * deg2rad) * Math.cos(np * deg2rad) * 20,
-						Math.sin(ny * deg2rad) * Math.cos(np * deg2rad) * 20,
-						Math.sin(np * deg2rad) * 20
-					]
-					dir[0] = Math.round(dir[0] / (20)) * 20;
-					dir[1] = Math.round(dir[1] / (20)) * 20;
-					dir[2] = Math.round(dir[2] / (20)) * 20;
-					tocheck = false;
-				}
-				else {
-					const yaw = [
-						Math.cos(ny * deg2rad),
-						Math.sin(ny * deg2rad)
-					]
-					const pitch = [
-						Math.cos(np * deg2rad),
-						Math.sin(np * deg2rad)
-					]
-					dir = [
-						yaw[0] * pitch[0] * blocksize,
-						yaw[1] * pitch[0] * blocksize,
-						pitch[1] * blocksize
-					]
-					let offset = [0,0,0];
-					if(dir[0] != 0) {
-						offset = [0,blocksize,blocksize];
-					}
-					if(dir[1] != 0) {
-						offset = [blocksize,0,blocksize];
-					}
-					if(dir[2] != 0) {
-						offset = [blocksize,blocksize,0];
-					}
-					// VVV ???????????
-					if(dir[0] < 0) {
-						offset = [-blocksize * 2,blocksize,blocksize];
-					}
-					dir = [Math.round((rel[0] - offset[0])/(20)) * 20 + dir[0] + offset[0],Math.round((rel[1] - offset[1])/(20)) * 20 + dir[1] + offset[1],Math.round((rel[2] - offset[2])/(20)) * 20 + dir[2] + offset[2]];
-				}
-				if(dir != 0) {
-					if(dir[2] == size[2] && Math.abs(dir[0]) <= size[0] && Math.abs(dir[1]) <= size[1]) {
-						dir[2] += blocksize;
-					} 
-					if(dir[0] % 20 === 0 && tocheck) {
-						dir[0] += 20 - blocksize;
-					}
-					if(dir[1] % 20 === 0 && tocheck) {
-						dir[1] += 20 - blocksize;
-					}
-					if(Math.abs(dir[0]) <= size[0] && Math.abs(dir[1]) <= size[1] && Math.abs(dir[2]) <= size[2]) {
-						return;
-					}
-					dir = [dir[0] + pos[0],dir[1] + pos[1],dir[2] + pos[2]];
-					let brick = JSON.parse(JSON.stringify(brsbrick.bricks[0]));
-					brick.size = [blocksize,blocksize,blocksize];
-					brick.material_index = 0;
-					brick.color = trenchcolor;
-					brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
-					brick.position = dir;
-					const toload = {...brsbrick, bricks: [brick]};
-					const colliding = tl.filter(b => Math.abs(dir[0] - b.p[0]) < blocksize + b.s[0] &&
-					Math.abs(dir[1] - b.p[1]) < blocksize + b.s[1] &&
-					Math.abs(dir[2] - b.p[2]) < blocksize + b.s[2]
-					);
-					if(colliding.length > 0) {
-						this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
-						return;
-					}
-					this.omegga.loadSaveData(toload, {quiet: true});
-					if(builder) {
-						inv.count -= 0.5;
-					}
-					else {
-						inv.count--;
-					}
-					tl.push({p: brick.position, s: brick.size});
-					blockinv[index] = inv;
-					this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + '</>');
-				}
-				*/
 				const n = hit.n;
 				let posh = hit.h;
 				if(size[0] <= 10) {
@@ -458,7 +365,6 @@ class TrenchWarfare {
 				`GetAll SceneComponent RelativeRotation Outer=${controller}`
 			),
 			timeoutDelay: 100
-			//bundle: true
 		});
 		return [Number(x),Number(y),Number(z)];
 	}
