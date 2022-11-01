@@ -7,6 +7,8 @@ Make sure when changing that the names match.
 
 You can also add or remove maps in the Map folder.
 
+# Requires death events to run.
+
 ## Guide to creating maps:
 The included minigame uses the default color pallete.
 
@@ -27,6 +29,3 @@ The trench bricks MUST be 2x cubes, 4x cubes, 16x, 32x, 64x, etc.
 
 #### Adding maps
 After your map has been complete you can simply put the map BRS file into the Map folder in the plugin and then restart the plugin.
-
-## Changing the enviroment and the minigame
-Both the minigame and the enviroment files are located in Minig and Env folder.
