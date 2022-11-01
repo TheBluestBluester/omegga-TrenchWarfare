@@ -5,5 +5,12 @@
   "config": {
   },
   "commands": [
+    {
+      "name": "/trench",
+      "description": "Gives all the info on trench warfare.",
+      "example": "/trench",
+      "args": [
+      ]
+    }
   ]
 }
