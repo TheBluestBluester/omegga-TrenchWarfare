@@ -20,7 +20,7 @@ Red team's flag
 #### blueflag
 Blue team's flag
 
-Notes:
+#### Notes:
 Trench cannot be placed on non-trench bricks.
 
 The trench bricks MUST be 2x cubes, 4x cubes, 16x, 32x, 64x, etc.
