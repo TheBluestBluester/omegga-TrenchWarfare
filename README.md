@@ -29,3 +29,6 @@ Due to the way the trench plugin works its limited to a single color.
 
 #### Adding maps
 After your map has been complete you can simply put the map BRS file into the Map folder in the plugin and then restart the plugin.
+
+## Changing the enviroment and the minigame
+Both the minigame and the enviroment files are located in Minig and Env folder.
