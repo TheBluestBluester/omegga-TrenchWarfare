@@ -202,6 +202,11 @@ class TrenchWarfare {
 			if(!data.message.includes('trench')) {
 				return;
 			}
+			if(timeout.includes(player.id)) {
+				return;
+			}
+			timeout.push(player.id);
+			setTimeout(() => timeout.splice(timeout.indexOf(player.id),1), 200);
 			let inv = blockinv.filter(inv => inv.player == data.player.id);
 			if(inv.length == 0) {
 				blockinv.push({player: player.id, count: 64});
@@ -287,11 +292,6 @@ class TrenchWarfare {
 			if(gracetime > 0 && !data.message.includes(team.name)) {
 				return;
 			}
-			if(timeout.includes(player.id)) {
-				return;
-			}
-			timeout.push(player.id);
-			setTimeout(() => timeout.splice(timeout.indexOf(player.id),1), 200);
 			if(size[0] <= 10) {
 				await this.omegga.clearRegion({center: pos, extent: size});
 				inv.count++;
@@ -504,7 +504,12 @@ class TrenchWarfare {
 	async announceEnd() {
 		await this.omegga.nextRoundMinigame(0);
 		roundended = true;
-		blockinv = [];
+		//blockinv = [];
+		for(var i in blockinv) {
+			let inv = blockinv[i];
+			inv.count = 64;
+			blockinv[i] = inv;
+		}
 		if(redpoints > blupoints) {
 			this.omegga.broadcast(clr.imp + '<b>' + clr.red + 'Red team </>has won the round!</>');
 		}
