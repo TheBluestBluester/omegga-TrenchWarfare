@@ -589,7 +589,9 @@ class TrenchWarfare {
 					switch(brick.components.BCD_Interact.ConsoleTag) {
 						case 'trench':
 							trenchcolor = brick.color;
-							lowest = pos[2] - brick.size[2];
+							if(pos[2] - brick.size[2] < lowest) {
+								lowest = pos[2] - brick.size[2];
+							}
 							tl.push({p: pos, s: brick.size});
 							break;
 						case 'redflag':
