@@ -804,7 +804,7 @@ class TrenchWarfare {
 			this.omegga.whisper(name, '<b>Welcome to trench warfare! Your goal is to capture the flag of the enemy team 3 times.</>');
 			this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
 			this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by click the flag base of your team.</>');
-			this.omegga.whisper(name, '<b>This also has classes!. Type /class (assault/sniper/shotgunner) to change your class. The classes changes once you respawn.</>');
+			this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/shotgunner) to change your class. The classes changes once you respawn.</>');
 			this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 		});
 		const players = this.omegga.players;
