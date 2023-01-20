@@ -394,8 +394,10 @@ class TrenchWarfare {
 		if(votetime > 0) {
 			votetime--;
 		}
-		if(votetime === 30) {
+		if(votetime <= 30 && votetime > 10) {
 			voted = [];
+		}
+		if(votetime === 30) {
 			this.omegga.broadcast('<b>Not enough people have voted to switch maps!</>');
 		}
 		if(gracetime > -1 && !roundended) {
