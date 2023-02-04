@@ -33,7 +33,7 @@
 			"bShowScoreColumn": true,
 			"bShowKillsColumn": true,
 			"bShowDeathsColumn": true,
-			"autoSortMode": "On",
+			"autoSortMode": "OnWithShuffle",
 			"teamSwitchPolicy": "OnlyIfBalanced",
 			"extraLives": 0,
 			"bAutoBalance": true
