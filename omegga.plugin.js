@@ -32,9 +32,14 @@ let gracetime = 60;
 
 let mapchoice = [];
 
+let redspawnlist = [];
+let bluspawnlist = [];
+
 let redpoints = 0;
 let blupoints = 0;
 
+let oldrpos = [];
+let oldbpos = [];
 let redflagpos = [];
 let bluflagpos = [];
 let redupd = false;
@@ -269,11 +274,10 @@ class TrenchWarfare {
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				brick.position = posh;
 				const toload = {...brsbrick, bricks: [brick]};
-				const colliding = tl.filter(b => Math.abs(posh[0] - b.p[0]) < 10 + b.s[0] &&
-				Math.abs(posh[1] - b.p[1]) < 10 + b.s[1] &&
-				Math.abs(posh[2] - b.p[2]) < 10 + b.s[2]
-				);
-				if(colliding.length > 0) {
+				//
+				const colliding = await this.checkColliding(posh, [10,10,10]);
+				//
+				if(colliding) {
 					this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
 					return;
 				}
@@ -352,6 +356,19 @@ class TrenchWarfare {
 		return team[0];
 	}
 	
+	async checkColliding(pos, scale) {
+		const colliding = tl.filter(b => Math.abs(pos[0] - b.p[0]) < scale[0] + b.s[0] &&
+			Math.abs(pos[1] - b.p[1]) < scale[1] + b.s[1] &&
+			Math.abs(pos[2] - b.p[2]) < scale[2] + b.s[2]
+		);
+		if(colliding.length > 0) {
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
 	// For some reason controller rotates with player's camera so i am using it to get player's camera rotation.
 	async GetRotation(controller) {
 		const rotRegExp = new RegExp(`${controller}\\.TransformComponent0.RelativeRotation = \\(Pitch=(?<x>[\\d\\.-]+),Yaw=(?<y>[\\d\\.-]+),Roll=(?<z>[\\d\\.-]+)\\)`);
@@ -378,6 +395,31 @@ class TrenchWarfare {
 		}
 		else {
 			console.log('Warning! There is no maps in the Map folder.');
+		}
+	}
+	
+	async teleportPlayers() {
+		const players = this.omegga.players
+		for(var p in players) {
+			const player = players[p];
+			const team = await this.getTeam(1, player);
+			let tppos = [];
+			if(team.name === "RedTeam") {
+				const rand = Math.floor(Math.random() * redspawnlist.length);
+				tppos = redspawnlist[rand];
+			}
+			else {
+				const rand = Math.floor(Math.random() * bluspawnlist.length);
+				tppos = bluspawnlist[rand];
+			}
+			tppos[2] += 20;
+			this.omegga.writeln("Chat.Command /TP " + player.name + " " + tppos.join(" ") + " 0");
+			const f = classlist.filter(cl => cl.player == player.name);
+			if(f.length === 0) {
+				return;
+			}
+			const clas = f[0];
+			this.setupClass(player, clas);
 		}
 	}
 	
@@ -416,7 +458,7 @@ class TrenchWarfare {
 					this.omegga.broadcast('<b>5 seconds of grace period remain.</>');
 					break;
 				case 0:
-					this.omegga.resetMinigame(0);
+					this.teleportPlayers();
 					this.omegga.broadcast('<b>FIGHT! Grace period has ended.</>');
 					break;
 			}
@@ -473,11 +515,12 @@ class TrenchWarfare {
 			await this.omegga.clearBricks('00000000-0000-0000-0000-000000000000', {quiet: true});
 			let posl = [];
 			if(redcarrier != '') {
-				const player = await this.omegga.getPlayer(blucarrier);
+				const player = await this.omegga.getPlayer(redcarrier);
 				if(player == null) {
 					return;
 				}
 				const pos = await player.getPosition();
+				oldrpos = pos;
 				posl.push(pos);
 			}
 			if(blucarrier != '') {
@@ -486,6 +529,7 @@ class TrenchWarfare {
 					return;
 				}
 				const pos = await player.getPosition();
+				oldbpos = pos;
 				posl.push(pos);
 			}
 			if(posl.length > 0) {
@@ -524,6 +568,8 @@ class TrenchWarfare {
 		this.omegga.broadcast('<b>' + clr.red + redpoints + '</> - ' + clr.blu + blupoints + '</>');
 		redpoints = 0;
 		blupoints = 0;
+		redspawnlist = [];
+		bluspawnlist = [];
 		redflagpos = [];
 		bluflagpos = [];
 		redcarrier = '';
@@ -583,8 +629,20 @@ class TrenchWarfare {
 			const brco = map.brick_owners[w];
 			ownerl.push(brco.name);
 		}
+		const assets = map.brick_assets;
+		const colors = map.colors;
 		for(var b in map.bricks) {
 			let brick = map.bricks[b];
+			if(assets[brick.asset_name_index] === "B_SpawnPoint") {
+				const brickcolor = colors[brick.color];
+				if(brickcolor[0] > brickcolor[2]) {
+					redspawnlist.push(brick.position);
+				}
+				else {
+					bluspawnlist.push(brick.position);
+				}
+				continue;
+			}
 			if('components' in brick) {
 				if('BCD_Interact' in brick.components) {
 					const pos = brick.position;
@@ -612,6 +670,30 @@ class TrenchWarfare {
 		await this.omegga.loadSaveData(map, {quiet: true});
 		this.omegga.resetMinigame(0);
 		roundended = false;
+	}
+	
+	async setupClass(plyr, clas) {
+		switch(clas.class) {
+			case 'assault':
+				plyr.giveItem(weapons['classic assault rifle']);
+				plyr.giveItem(weapons['smg']);
+				break;
+			case 'sniper':
+				plyr.giveItem(weapons['sniper']);
+				plyr.giveItem(weapons['magnum pistol']);
+				break;
+			case 'shotgunner':
+				plyr.giveItem(weapons['tactical shotgun']);
+				plyr.giveItem(weapons['bullpup smg']);
+				break;
+			case 'builder':
+				plyr.giveItem(weapons['high power pistol']);
+				plyr.giveItem(weapons['health potion']);
+				plyr.giveItem(weapons['health potion']);
+				break;
+		}
+		plyr.giveItem(weapons['impact grenade']);
+		plyr.giveItem(weapons['stick grenade']);
 	}
 	
 	async init() {
@@ -740,7 +822,7 @@ class TrenchWarfare {
 			const reciever = await this.omegga.getPlayer(args.join(' '));
 			const owninv = await this.omegga.getPlayer(name);
 			if(reciever == null) {
-				this.omegga.whisper(name, clr.red + '<b>That player either isn\'t online or you have misspelled.</>');
+				this.omegga.whisper(name, clr.red + '<b>That player either isn\'t online or you have miss-spelled.</>');
 				return;
 			}
 			const ownteam = await this.getTeam(1, name);
@@ -805,7 +887,7 @@ class TrenchWarfare {
 			}
 			this.omegga.whisper(name, '<b>Welcome to trench warfare! Your goal is to capture the flag of the enemy team 3 times.</>');
 			this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
-			this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by click the flag base of your team.</>');
+			this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
 			this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/shotgunner) to change your class. The classes changes once you respawn.</>');
 			this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 		});
@@ -848,9 +930,16 @@ class TrenchWarfare {
 				if(plyr != null) {
 					pos = await plyr.getPosition();
 				}
+				pos[2] += 20;
+				if(this.checkColliding(pos, [10,10,20])) {
+					pos = oldrpos;
+				}
+				else {
+					pos[2] -= 20;
+				}
 				redcarrier = '';
 				if(pos[2] < lowest) {
-					this.omegga.broadcast('<b>The ' + clr.red + 'red flag</> is too deep so it was respawned.</>');
+					this.omegga.broadcast('<b>The ' + clr.red + 'red flag</> is unreachable so it got respawned.</>');
 					redflagpos = reddef;
 					redupd = true;
 					return;
@@ -866,9 +955,16 @@ class TrenchWarfare {
 				if(plyr != null) {
 					pos = await plyr.getPosition();
 				}
+				pos[2] += 20;
+				if(this.checkColliding(pos, [10,10,20])) {
+					pos = oldbpos;
+				}
+				else {
+					pos[2] -= 20;
+				}
 				blucarrier = '';
 				if(pos[2] < lowest) {
-					this.omegga.broadcast('<b>The ' + clr.blu + 'blue flag</> is too deep so it was respawned.</>');
+					this.omegga.broadcast('<b>The ' + clr.blu + 'blue flag</> is unreachable so it got respawned.</>');
 					bluflagpos = bludef;
 					bluupd = true;
 					return;
@@ -892,27 +988,7 @@ class TrenchWarfare {
 				return;
 			}
 			const clas = f[0];
-			switch(clas.class) {
-				case 'assault':
-					plyr.giveItem(weapons['classic assault rifle']);
-					plyr.giveItem(weapons['bullpup smg']);
-					break;
-				case 'sniper':
-					plyr.giveItem(weapons['sniper']);
-					plyr.giveItem(weapons['magnum pistol']);
-					break;
-				case 'shotgunner':
-					plyr.giveItem(weapons['hunting shotgun']);
-					plyr.giveItem(weapons['tactical shotgun']);
-					break;
-				case 'builder':
-					plyr.giveItem(weapons['high power pistol']);
-					plyr.giveItem(weapons['health potion']);
-					plyr.giveItem(weapons['health potion']);
-					break;
-			}
-			plyr.giveItem(weapons['impact grenade']);
-			plyr.giveItem(weapons['stick grenade']);
+			this.setupClass(plyr, clas);
 		}
 	}
 	async stop() {
