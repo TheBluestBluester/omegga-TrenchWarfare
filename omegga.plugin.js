@@ -274,9 +274,14 @@ class TrenchWarfare {
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				brick.position = posh;
 				const toload = {...brsbrick, bricks: [brick]};
-				//
+				if(
+					Math.abs(posh[0] - ppos[0]) < 30 &&
+					Math.abs(posh[1] - ppos[1]) < 30 &&
+					Math.abs(posh[2] - ppos[2]) < 20 ) {
+					this.omegga.middlePrint(player.name, '<b>You\'re blocking yourself!</>');
+					return;
+				}
 				const colliding = await this.checkColliding(posh, [10,10,10]);
-				//
 				if(colliding) {
 					this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
 					return;
@@ -334,7 +339,7 @@ class TrenchWarfare {
 			}
 		}
 		catch(e) {
-			console.log(e);
+			//console.log(e);
 		}
 	}
 	
