@@ -275,8 +275,8 @@ class TrenchWarfare {
 				brick.position = posh;
 				const toload = {...brsbrick, bricks: [brick]};
 				if(
-					Math.abs(posh[0] - ppos[0]) < 30 &&
-					Math.abs(posh[1] - ppos[1]) < 30 &&
+					Math.abs(posh[0] - ppos[0]) < 20 &&
+					Math.abs(posh[1] - ppos[1]) < 20 &&
 					Math.abs(posh[2] - ppos[2]) < 20 ) {
 					this.omegga.middlePrint(player.name, '<b>You\'re blocking yourself!</>');
 					return;
