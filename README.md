@@ -28,4 +28,4 @@ Trench cannot be placed on non-trench bricks.
 The trench bricks MUST be 2x cubes, 4x cubes, 16x, 32x, 64x, etc.
 
 #### Adding maps
-After your map has been complete you can simply put the map BRS file into the Map folder in the plugin and then restart the plugin.
+After your map has been completed you can simply put the map BRS file into the Map folder in the plugin and then restart the plugin.
