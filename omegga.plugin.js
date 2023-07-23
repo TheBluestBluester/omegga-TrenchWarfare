@@ -15,6 +15,9 @@ const markerbrs = brs.read(brsfile);
 const tminig = fs.readFileSync(__dirname + "/Minig and Env/TrenchMinigame.bp", 'utf8');
 const tenv = fs.readFileSync(__dirname + "/Minig and Env/Trench wars env preset.bp", 'utf8');
 
+let activeGrenades = [];
+let checkForGrenades = true;
+
 let trenchcolor = 44;
 let lowest = 0;
 let tl = [];
@@ -96,12 +99,12 @@ class TrenchWarfare {
 		return hit;
 	}
 	
-	async Subdivide(clp, bpos, bsize){
-		// The was alot easier to make than i expected.
+	async Subdivide(clp, bpos, bsize, cycleAmount){
+		// This was alot easier to make than i expected.
 		let finish = false;
 		let cycles = 0;
 		let briklist = [{p: bpos, s: bsize}];
-		while(!finish && cycles < 10) {
+		while(!finish && cycles < cycleAmount) {
 			for(var i in briklist) {
 				const brik = briklist[i];
 				const B1 = [brik.p[0] - brik.s[0],brik.p[1] - brik.s[1],brik.p[2] - brik.s[2]];
@@ -221,14 +224,12 @@ class TrenchWarfare {
 				inv = inv[0];
 			}
 			const index = blockinv.findIndex(function(v) { return v.player == inv.player });
-			const ppos = await player.getPosition();
-			const crouch = await player.isCrouched();
+			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), player.isCrouched(), this.GetRotation(player.controller)]);
 			const size = data.brick_size;
 			const pos = data.position;
 			const blocksize = 10;
 			const clas = classlist.filter(cl => cl.player == player.name)[0];
-			const builder = (clas.class == 'builder');
-			const playerRot = await this.GetRotation(player.controller).catch();
+			const builder = (clas.class == 'trenchie');
 			if(playerRot == null) {
 				return;
 			}
@@ -270,7 +271,7 @@ class TrenchWarfare {
 				let brick = JSON.parse(JSON.stringify(brsbrick.bricks[0]));
 				brick.size = [blocksize,blocksize,blocksize];
 				brick.material_index = 0;
-				brick.color = trenchcolor;
+				brick.color = team.color;
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				brick.position = posh;
 				const toload = {...brsbrick, bricks: [brick]};
@@ -293,7 +294,7 @@ class TrenchWarfare {
 				else {
 					inv.count--;
 				}
-				tl.push({p: brick.position, s: brick.size});
+				tl.push({p: brick.position, s: brick.size, c: team.color});
 				blockinv[index] = inv;
 				this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + '</>');
 				return;
@@ -314,7 +315,8 @@ class TrenchWarfare {
 				return;
 			}
 			hit = hit.h;
-			const cubelist = await this.Subdivide(hit, pos, size);
+			const tlind = tl.findIndex(b => b.p.join(' ') === pos.join(' '));
+			const cubelist = await this.Subdivide(hit, pos, size, 10);
 			const defaultb = brsbrick.bricks[0];
 			let brlist = [];
 			for(var i in cubelist) {
@@ -326,9 +328,9 @@ class TrenchWarfare {
 				brick.color = trenchcolor;
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				brlist.push(brick);
-				tl.push({p: br.p, s: br.s});
+				tl.push({p: br.p, s: br.s, c: tl[tlind].c});
 			}
-			tl.splice(tl.findIndex(b => b.p.join(' ') === pos.join(' ')), 1);
+			tl.splice(tlind, 1);
 			await this.omegga.clearRegion({center: pos, extent: size});
 			inv.count++;
 			blockinv[index] = inv;
@@ -404,10 +406,13 @@ class TrenchWarfare {
 	}
 	
 	async teleportPlayers() {
-		const players = this.omegga.players
+		const players = this.omegga.players;
 		for(var p in players) {
 			const player = players[p];
 			const team = await this.getTeam(1, player);
+			if(team == null) {
+				continue;
+			}
 			let tppos = [];
 			if(team.name === "RedTeam") {
 				const rand = Math.floor(Math.random() * redspawnlist.length);
@@ -429,6 +434,23 @@ class TrenchWarfare {
 	}
 	
 	async ctftick() {
+		//try{
+		for(var c in classlist) {
+			const pclass = classlist[c];
+			if(pclass == null) {
+				continue;
+			}
+			if(pclass.class != 'machinegunner') {
+				continue;
+			}
+			const player = await this.omegga.getPlayer(pclass.player);
+			if(player == null) {
+				continue;
+			}
+			if(await player.isCrouched()) {
+				player.heal(5);
+			}
+		}
 		if(roundended) {
 			return;
 		}
@@ -549,13 +571,154 @@ class TrenchWarfare {
 				}
 			}
 		}
+		//}catch(e){console.log(e)}
+		// Grenade stuff
+		try{
+		if(!checkForGrenades) {
+			return;
+		}
+		let grenades = await this.getGrenades();
+		let exploded = activeGrenades.filter(g => !grenades.includes(g.id));
+		if(exploded.length > 0) {
+			//console.log(exploded);
+			for(let e in exploded) {
+				this.explosionSubdivide(exploded[e].pos,60);
+			}
+		}
+		let newList = [];
+		if(grenades.length == 0) {
+			activeGrenades = [];
+			return;
+		}
+		//console.log(grenades.length);
+		for(let g in grenades) {
+			const grenade = grenades[g];
+			let pos = await this.getGrenadePos(grenade);
+			if(!pos) {
+				pos = activeGrenades.find(g => g.id == grenade);
+				if(pos == null) {
+					continue;
+				}
+				pos = pos.pos;
+			}
+			newList.push({id: grenade, pos: pos});
+		}
+		activeGrenades = newList;
+		}catch(e){console.log(e)}
 	}
 	
+	async explosionSubdivide(pos, radius) {
+		try {
+		let affectedBricks = tl.filter(b => Math.abs(pos[0] - b.p[0]) < b.s[0] + radius &&
+			Math.abs(pos[1] - b.p[1]) < b.s[1] + radius &&
+			Math.abs(pos[2] - b.p[2]) < b.s[2] + radius
+		);
+		//console.log(affectedBricks);
+		for(let ab in affectedBricks) {
+			let brick = affectedBricks[ab];
+			
+			const color = brick.c;
+			
+			let bricklist = [brick];
+			
+			this.omegga.clearRegion({center: brick.p, extent: brick.s});
+			const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
+			tl.splice(tlind, 1);
+			
+			let finish = false;
+			let cycles = 0;
+			//let skip = 0;
+			while(!finish && cycles < 15) {
+				let toAdd = [];
+				for(let b in bricklist) {
+					let br = bricklist[b];
+					if(br == null) {
+						continue;
+					}
+					let dist = Math.sqrt( (br.p[0] - pos[0]) ** 2 +
+						(br.p[1] - pos[1]) ** 2 +
+						(br.p[2] - pos[2]) ** 2
+					);
+					if(dist < radius + br.s[0] * 1.414) {
+						bricklist.splice(b, 1);
+						b--;
+						if(br.s[0] <= 10) {
+							continue;
+						}
+						let offset = [1 + br.p[0],1 + br.p[1],0 + br.p[2]];
+						const blist = await this.Subdivide(offset, br.p, br.s, 1);
+						bricklist = bricklist.concat(blist);
+					}
+				}
+				//skip--;
+				if(toAdd.length > 0) {
+					bricklist = bricklist.concat(toAdd);
+				}
+				cycles++;
+			}
+			const defaultb = brsbrick.bricks[0];
+			let brlist = [];
+			for(let i in bricklist) {
+				const br = bricklist[i];
+				let brick = JSON.parse(JSON.stringify(defaultb));
+				brick.size = br.s;
+				brick.position = br.p;
+				brick.material_index = 0;
+				brick.color = color;
+				brick.components.BCD_Interact.ConsoleTag = 'trench';
+				brlist.push(brick);
+				tl.push({p: br.p, s: br.s, c: color});
+			}
+			if(brlist.length > 0) {
+				const toload = {...brsbrick, bricks: brlist};
+				this.omegga.loadSaveData(toload, {quiet: true});
+			}
+		}
+		}catch(e){console.log(e)}
+	}
+	
+	async getGrenades() {
+		try{
+		let grenades = [];
+		const PGreg = new RegExp(
+		`Projectile_StickGrenade_C .+PersistentLevel\.(?<Grenade>.+)`
+		);
+		const gList = await this.omegga.addWatcher(PGreg, {
+			exec: () =>
+			this.omegga.writeln(
+				`getAll Projectile_StickGrenade_C RelativeLocation`
+			),
+			bundle: true,
+			timeoutDelay: 100
+		});
+		for(let pg in gList) {
+			const match = gList[pg];
+			grenades.push(match.groups.Grenade);
+		}
+		return grenades;
+		}catch(e){return [];}
+	}
+	
+	async getGrenadePos(grenade) {
+		try{
+		const PGreg = new RegExp(
+		`SphereComponent .+?PersistentLevel\\.${grenade}\\.CollisionComponent\\.RelativeLocation = \\(X=(?<x>[\\d\\.-]+),Y=(?<y>[\\d\\.-]+),Z=(?<z>[\\d\\.-]+)\\)`
+		);
+		const [{groups: { x, y, z }}] = await this.omegga.addWatcher(PGreg, {
+			exec: () =>
+			this.omegga.writeln(
+				`getAll SphereComponent RelativeLocation Outer=${grenade}`
+			),
+			first: 'index',
+			timeoutDelay: 500
+		});
+		return [x, y, z];
+		}catch(e){return false;}
+	}
 	
 	async announceEnd() {
 		await this.omegga.nextRoundMinigame(0);
 		roundended = true;
-		//blockinv = [];
 		for(var i in blockinv) {
 			let inv = blockinv[i];
 			inv.count = 64;
@@ -657,7 +820,7 @@ class TrenchWarfare {
 							if(pos[2] - brick.size[2] < lowest) {
 								lowest = pos[2] - brick.size[2];
 							}
-							tl.push({p: pos, s: brick.size});
+							tl.push({p: pos, s: brick.size, c: brick.color});
 							break;
 						case 'redflag':
 							reddef = [pos[0],pos[1],pos[2] + brick.size[2]];
@@ -685,16 +848,16 @@ class TrenchWarfare {
 				break;
 			case 'sniper':
 				plyr.giveItem(weapons['sniper']);
-				plyr.giveItem(weapons['magnum pistol']);
+				plyr.giveItem(weapons['high power pistol']);
 				break;
-			case 'shotgunner':
+			case 'trenchie':
 				plyr.giveItem(weapons['tactical shotgun']);
 				plyr.giveItem(weapons['bullpup smg']);
+				plyr.giveItem(weapons['health potion']);
 				break;
-			case 'builder':
-				plyr.giveItem(weapons['high power pistol']);
-				plyr.giveItem(weapons['health potion']);
-				plyr.giveItem(weapons['health potion']);
+			case 'machinegunner':
+				plyr.giveItem(weapons['light machine gun']);
+				plyr.giveItem(weapons['shotgun']);
 				break;
 		}
 		plyr.giveItem(weapons['impact grenade']);
@@ -865,9 +1028,9 @@ class TrenchWarfare {
 			switch(args.join(' ').toLowerCase()) {
 				case 'assault':
 				case 'sniper':
-				case 'shotgunner':
-				case 'builder':
-					if(clas.class != 'builder') {
+				case 'trenchie':
+				case 'machinegunner':
+					if(clas.class != 'trenchie') {
 						classlist[index].upd = false;
 					}
 					classlist[index].class = args.join(' ');
@@ -875,7 +1038,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>Class has been set to: ' + clr.rst + args.join(' ').toLowerCase() + '</>. This class will be applied when you respawn.</>');
 					break;
 				default:
-					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, shotgunner, builder</>');
+					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner</>');
 					break;
 			}
 		})
@@ -914,7 +1077,7 @@ class TrenchWarfare {
 			const presetpath = this.omegga.presetPath;
 			console.log("Minigame is missing! Loading minigame...");
 			await fs.writeFile(presetpath + '/Minigame/TrenchMinigame.bp', tminig, (err, data) => {});
-			this.omegga.loadMinigame('TrenchMinigame', "Bluester16");
+			this.omegga.loadMinigame('TrenchMinigame', "1050c1b9-cedc-4d6a-8131-495819b04636");
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
 		}
 	}
