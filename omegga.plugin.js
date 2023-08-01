@@ -224,7 +224,7 @@ class TrenchWarfare {
 				inv = inv[0];
 			}
 			const index = blockinv.findIndex(function(v) { return v.player == inv.player });
-			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), player.isCrouched(), this.GetRotation(player.controller)]);
+			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), this.isCrouching(player), this.GetRotation(player.controller)]);
 			const size = data.brick_size;
 			const pos = data.position;
 			const blocksize = 10;
@@ -343,6 +343,26 @@ class TrenchWarfare {
 		catch(e) {
 			//console.log(e);
 		}
+	}
+	
+	async isCrouching(player) {
+		// Turns out omegga's isCrouched() doesn't actually check if the log matches the player's pawn. Which causes the plugin to think that the player is not crouching.
+		try{
+		const pawn = await this.omegga.getPlayer(player.id).getPawn();
+		const reg = new RegExp(`.+?BP_FigureV2_C .+?PersistentLevel\.${pawn}\.bIsCrouched = (?<crouched>True|False)$`);
+		const [
+		{
+			groups: { crouched },
+		},
+		] = await this.omegga.addWatcher(reg, {
+			exec: () =>
+			this.omegga.writeln(
+				`GetAll BP_FigureV2_C bIsCrouched Name=${pawn}`
+			),
+			timeoutDelay: 100
+		});
+		return crouched == 'True';
+		}catch(e){console.log(e)}
 	}
 	
 	async getTeam(minig, player) {
@@ -609,11 +629,10 @@ class TrenchWarfare {
 	
 	async explosionSubdivide(pos, radius) {
 		try {
-		let affectedBricks = tl.filter(b => Math.abs(pos[0] - b.p[0]) < b.s[0] + radius &&
-			Math.abs(pos[1] - b.p[1]) < b.s[1] + radius &&
-			Math.abs(pos[2] - b.p[2]) < b.s[2] + radius
+		let affectedBricks = tl.filter(b => Math.abs(pos[0] - b.p[0]) < b.s[0] + radius * 1.2 &&
+			Math.abs(pos[1] - b.p[1]) < b.s[1] + radius * 1.2 &&
+			Math.abs(pos[2] - b.p[2]) < b.s[2] + radius * 1.2
 		);
-		//console.log(affectedBricks);
 		for(let ab in affectedBricks) {
 			let brick = affectedBricks[ab];
 			
