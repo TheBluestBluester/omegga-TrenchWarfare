@@ -62,7 +62,7 @@ module.exports = {
 		let lastdist = 99999;
 		for(var h in hitl) {
 			const hh = hitl[h].h;
-			const dist = Math.sqrt((hh[0]- L1[0]) * (hh[0]- L1[0]) + (hh[1]- L1[1]) * (hh[1]- L1[1]) + (hh[2]- L1[2]) * (hh[2]- L1[2]));
+			const dist = Math.sqrt((hh[0] - L1[0]) ** 2 + (hh[1] - L1[1]) ** 2 + (hh[2] - L1[2]) ** 2);
 			if(dist < lastdist) {
 				lastdist = dist;
 				hit = hitl[h];

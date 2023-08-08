@@ -82,10 +82,10 @@ class TrenchWarfare {
 		this.store = store
 	}
 	
-	async Raycast(bpos, bsize, ppos, prot, steps) {
+	async Raycast(bpos, bsize, ppos, prot, steps, pheight) {
 		const B1 = [bpos[0] - bsize[0],bpos[1] - bsize[1],bpos[2] - bsize[2]];
 		const B2 = [bpos[0] + bsize[0],bpos[1] + bsize[1],bpos[2] + bsize[2]];
-		const L1 = [ppos[0],ppos[1],ppos[2] + 16]
+		const L1 = [ppos[0],ppos[1],ppos[2] + pheight]
 		const yaw = prot[1];
 		const pitch = prot[0];
 		const deg2rad = Math.PI / 180;
@@ -234,7 +234,7 @@ class TrenchWarfare {
 				return;
 			}
 			if(crouch) {
-				const hit = await this.Raycast(pos,size,ppos,playerRot,300);
+				const hit = await this.Raycast(pos,size,ppos,playerRot,300,10);
 				if(hit == false) {
 					return;
 				}
@@ -310,7 +310,7 @@ class TrenchWarfare {
 				tl.splice(tl.findIndex(b => b.p.join(' ') === pos.join(' ')), 1);
 				return;
 			}
-			let hit = await this.Raycast(pos,size,ppos,playerRot,300);
+			let hit = await this.Raycast(pos,size,ppos,playerRot,300,16);
 			if(hit === false) {
 				return;
 			}
@@ -743,15 +743,37 @@ class TrenchWarfare {
 			inv.count = 64;
 			blockinv[i] = inv;
 		}
+		
+		let winnerTeam = ""
 		if(redpoints > blupoints) {
 			this.omegga.broadcast(clr.imp + '<b>' + clr.red + 'Red team </>has won the round!</>');
+			winnerTeam = "RedTeam";
 		}
 		else if(redpoints < blupoints) {
 			this.omegga.broadcast(clr.imp + '<b>' + clr.blu + 'Blue team </>has won the round!</>');
+			winnerTeam = "BlueTeam";
 		}
 		else {
 			this.omegga.broadcast(clr.imp + '<b>Draw.</>');
 		}
+		
+		const players = this.omegga.players;
+		for(let p in players) {
+			const player = players[p];
+			const team = await this.getTeam(1, player);
+			if(team == null) {
+				continue;
+			}
+			const f = classlist.filter(cl => cl.player == player.name);
+			if(f.length === 0) {
+				continue;
+			}
+			const clas = f[0];
+			if(team.name !== winnerTeam) {
+				this.clearClassWeapons(player, clas);
+			}
+		}
+		
 		this.omegga.broadcast('<b>' + clr.red + redpoints + '</> - ' + clr.blu + blupoints + '</>');
 		redpoints = 0;
 		blupoints = 0;
@@ -881,6 +903,30 @@ class TrenchWarfare {
 		}
 		plyr.giveItem(weapons['impact grenade']);
 		plyr.giveItem(weapons['stick grenade']);
+	}
+	
+	async clearClassWeapons(plyr, clas) {
+		switch(clas.class) {
+			case 'assault':
+				plyr.takeItem(weapons['classic assault rifle']);
+				plyr.takeItem(weapons['smg']);
+				break;
+			case 'sniper':
+				plyr.takeItem(weapons['sniper']);
+				plyr.takeItem(weapons['high power pistol']);
+				break;
+			case 'trenchie':
+				plyr.takeItem(weapons['tactical shotgun']);
+				plyr.takeItem(weapons['bullpup smg']);
+				plyr.takeItem(weapons['health potion']);
+				break;
+			case 'machinegunner':
+				plyr.takeItem(weapons['light machine gun']);
+				plyr.takeItem(weapons['shotgun']);
+				break;
+		}
+		plyr.takeItem(weapons['impact grenade']);
+		plyr.takeItem(weapons['stick grenade']);
 	}
 	
 	async init() {
