@@ -16,7 +16,6 @@ The included minigame uses the default color pallete.
 
 #### trench
 The trench.
-You can only have 1 color of trench.
 #### redflag
 Red team's flag
 #### blueflag
