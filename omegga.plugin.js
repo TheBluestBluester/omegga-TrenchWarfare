@@ -944,6 +944,7 @@ class TrenchWarfare {
 		this.omegga.on('cmd:skip', async name => {
 			if(roundended) {
 				this.omegga.whisper(name, clr.red + "<b>Cannot skip while the round is ended.</>");
+				return;
 			}
 			if(voted.includes(name)) {
 				this.omegga.whisper(name, clr.red + '<b>You have already voted to skip.</>')
