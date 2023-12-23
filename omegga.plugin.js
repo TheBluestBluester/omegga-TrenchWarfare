@@ -11,6 +11,8 @@ brsfile = fs.readFileSync(__dirname + "/bluf.brs");
 const blubrs = brs.read(brsfile);
 brsfile = fs.readFileSync(__dirname + "/Marker.brs");
 const markerbrs = brs.read(brsfile);
+brsfile = fs.readFileSync(__dirname + "/Gravestone.brs");
+const gravestoneBRS = brs.read(brsfile);
 
 const tminig = fs.readFileSync(__dirname + "/Minig and Env/TrenchMinigame.bp", 'utf8');
 const tenv = fs.readFileSync(__dirname + "/Minig and Env/Trench wars env preset.bp", 'utf8');
@@ -31,16 +33,24 @@ let votetime = 0;
 let mapid = 0;
 let tick = 0;
 let weapons;
-let gracetime = 60;
+let deadPlayers = {};
+let revivePos = {};
 
 let mapchoice = [];
 
 let redspawnlist = [];
 let bluspawnlist = [];
 
+let mode = "";
+
 let redpoints = 0;
 let blupoints = 0;
 
+// CTF
+let gracetime = 60;
+
+let prefallrpos = [];
+let prefallbpos = [];
 let oldrpos = [];
 let oldbpos = [];
 let redflagpos = [];
@@ -56,7 +66,10 @@ let blucarrier = '';
 
 let redtimout = 0;
 let blutimout = 0;
-
+// CTF
+// ZC
+let zones = [];
+// ZC
 let votes = [];
 let maps = [];
 let roundended = true;
@@ -70,6 +83,13 @@ let clr = {
 	rst: '<color="679">',
 	dgrn: '<color="495">',
 	imp: '<size="30">'
+}
+
+let modeColor = {
+	
+	CTF: clr.red + 'CTF',
+	ZC: clr.blu + 'ZC'
+	
 }
 
 class TrenchWarfare {
@@ -173,7 +193,7 @@ class TrenchWarfare {
 						bluupd = true;
 						const score = await player.getScore(1);
 						player.setScore(1,score + 1);
-						this.omegga.broadcast('<b>' + clr.red + player.name + '</> has captured the ' + clr.blu + 'blue flag!</>');
+						this.omegga.broadcast('<b>' + clr.red + player.name + '</> has captured the ' + clr.blu + 'blue flag!</> (' + clr.red + redpoints + '</> - ' + clr.blu + blupoints + '</>)');
 						if(redpoints >= 3) {
 							this.announceEnd();
 						}
@@ -193,7 +213,7 @@ class TrenchWarfare {
 						redupd = true;
 						const score = await player.getScore(1);
 						player.setScore(1,score + 1);
-						this.omegga.broadcast('<b>' + clr.blu + player.name + '</> has captured the ' + clr.red + 'red flag!</>');
+						this.omegga.broadcast('<b>' + clr.blu + player.name + '</> has captured the ' + clr.red + 'red flag!</> (' + clr.red + redpoints + '</> - ' + clr.blu + blupoints + '</>)');
 						if(blupoints >= 3) {
 							this.announceEnd();
 						}
@@ -253,11 +273,11 @@ class TrenchWarfare {
 					let offset = [];
 					let offset2 = [];
 					if(n[0] != 0) {
-						offset = [0,0,10];
+						offset = [0,0,20];
 						offset2 = [0,10,-10];
 					}
 					if(n[1] != 0) {
-						offset = [0,0,10];
+						offset = [0,0,20];
 						offset2 = [10,0,-10];
 					}
 					if(n[2] != 0) {
@@ -300,6 +320,10 @@ class TrenchWarfare {
 				return;
 			}
 			if(gracetime > 0 && !data.message.includes(team.name)) {
+				return;
+			}
+			if(data.message.includes('undiggable')) {
+				this.omegga.middlePrint(player.name, 'You can only place trench here.');
 				return;
 			}
 			if(size[0] <= 10) {
@@ -366,6 +390,7 @@ class TrenchWarfare {
 	}
 	
 	async getTeam(minig, player) {
+		try {
 		const minigames = await this.omegga.getMinigames();
 		const minigame = minigames[minig];
 		if(minigame == null) {
@@ -381,6 +406,7 @@ class TrenchWarfare {
 			team = teams.filter(t => t.members.includes(player));
 		}
 		return team[0];
+		}catch(e){console.log(e)}
 	}
 	
 	async checkColliding(pos, scale) {
@@ -398,6 +424,7 @@ class TrenchWarfare {
 	
 	// For some reason controller rotates with player's camera so i am using it to get player's camera rotation.
 	async GetRotation(controller) {
+		try{
 		const rotRegExp = new RegExp(`${controller}\\.TransformComponent0.RelativeRotation = \\(Pitch=(?<x>[\\d\\.-]+),Yaw=(?<y>[\\d\\.-]+),Roll=(?<z>[\\d\\.-]+)\\)`);
 		const [
 		{
@@ -411,6 +438,7 @@ class TrenchWarfare {
 			timeoutDelay: 100
 		});
 		return [Number(x),Number(y),Number(z)];
+		}catch(e){console.log(e)}
 	}
 	
 	async initmaps() {
@@ -443,7 +471,7 @@ class TrenchWarfare {
 				tppos = bluspawnlist[rand];
 			}
 			tppos[2] += 20;
-			this.omegga.writeln("Chat.Command /TP " + player.name + " " + tppos.join(" ") + " 0");
+			this.omegga.writeln("Chat.Command /TP \"" + player.name + "\" " + tppos.join(" ") + " 0");
 			const f = classlist.filter(cl => cl.player == player.name);
 			if(f.length === 0) {
 				return;
@@ -453,24 +481,93 @@ class TrenchWarfare {
 		}
 	}
 	
-	async ctftick() {
-		//try{
+	async generalTick() {
+		try{
 		for(var c in classlist) {
 			const pclass = classlist[c];
 			if(pclass == null) {
-				continue;
-			}
-			if(pclass.class != 'machinegunner') {
 				continue;
 			}
 			const player = await this.omegga.getPlayer(pclass.player);
 			if(player == null) {
 				continue;
 			}
-			if(await player.isCrouched()) {
-				player.heal(5);
+			if(pclass.class == 'machinegunner') {
+				if(await this.isCrouching(player)) {
+					player.heal(5);
+				}
+			}
+			if(pclass.class == 'medic') {
+				if(await this.isCrouching(player)) {
+					
+					const ownPos = await player.getPosition();
+					const ownTeam = await this.getTeam(1, player);
+					
+					let isReviving = false;
+					
+					let deadPlayerList = Object.entries(deadPlayers);
+					for(let dp in deadPlayerList) {
+						
+						const deadPlayer = deadPlayerList[dp];
+						if(deadPlayer[1].heal >= 5) {
+							continue;
+						}
+						
+						const deadPos = deadPlayer[1].pos;
+						const relative = [deadPos[0] - ownPos[0], deadPos[1] - ownPos[1], deadPos[2] - ownPos[2]];
+						const distance = Math.sqrt(relative[0] ** 2 + relative[1] ** 2 + relative[2] ** 2);
+						if(distance > 100) {
+							continue;
+						}
+						
+						if(ownTeam.name != deadPlayer[1].team) {
+							continue;
+						}
+						//console.log(deadPlayer, ownPos, ownTeam);
+						isReviving = true;
+						deadPlayers[deadPlayer[0]].heal += 0.5;
+						this.omegga.middlePrint(player.name, clr.dgrn + ('||').repeat(Math.min(deadPlayer[1].heal * 2, 10)) + '</>' + ('||').repeat(10 - Math.min(deadPlayer[1].heal * 2, 10)));
+						if(deadPlayer[1].heal == 5) {
+							revivePos[deadPlayer[0]] = deadPlayer[1].pos;
+							this.omegga.whisper(deadPlayer[0], clr.dgrn + '<b>You have been revived! You will respawn in the position that you have died.</>');
+						}
+						
+						break;
+						
+					}
+					if(isReviving) {
+						continue;
+					}
+					
+					const minigames = await this.omegga.getMinigames();
+					const minigame = minigames[1];
+					if(minigame == null) {
+						continue;
+					}
+					const teamPlayers = minigame.teams.find(t => t.name == ownTeam.name);
+					//console.log(teamPlayers);
+					for(let p in teamPlayers.members) {
+						
+						const tPlayer = teamPlayers.members[p];
+						if(tPlayer.name == player.name) {
+							continue;
+						}
+						
+						const pos = await tPlayer.getPosition();
+						const relative = [pos[0] - ownPos[0], pos[1] - ownPos[1], pos[2] - ownPos[2]];
+						const distance = Math.sqrt(relative[0] ** 2 + relative[1] ** 2 + relative[2] ** 2);
+						if(distance > 50) {
+							continue;
+						}
+						
+						tPlayer.heal(5);
+						
+					}
+					
+				}
 			}
 		}
+		}catch(e){console.log(e);}
 		if(roundended) {
 			return;
 		}
@@ -489,6 +586,199 @@ class TrenchWarfare {
 		if(votetime === 30) {
 			this.omegga.broadcast('<b>Not enough people have voted to switch maps!</>');
 		}
+		
+		switch(mode) {
+			
+			case 'CTF':
+				await this.ctftick();
+				break;
+			case 'ZC':
+				await this.zctick();
+				break;
+			
+		}
+		
+		// Grenade stuff
+		if(!checkForGrenades) {
+			return;
+		}
+		let grenades = await this.getGrenades();
+		let exploded = activeGrenades.filter(g => !grenades.includes(g.id));
+		if(exploded.length > 0) {
+			//console.log(exploded);
+			for(let e in exploded) {
+				this.explosionSubdivide(exploded[e].pos,60);
+			}
+		}
+		let newList = [];
+		if(grenades.length == 0) {
+			activeGrenades = [];
+			return;
+		}
+		//console.log(grenades.length);
+		for(let g in grenades) {
+			const grenade = grenades[g];
+			let pos = await this.getGrenadePos(grenade);
+			if(!pos) {
+				pos = activeGrenades.find(g => g.id == grenade);
+				if(pos == null) {
+					continue;
+				}
+				pos = pos.pos;
+			}
+			newList.push({id: grenade, pos: pos});
+		}
+		activeGrenades = newList;
+		
+	}
+	
+	async zctick() {
+		
+		function changeZoneBias(index, direction) {
+			
+			let zone = zones[index];
+			let prevValue = zone.bias;
+			zone.bias = Math.min(20, Math.max(zone.bias + direction * 2, -20));
+			if(zone.capturedBy == 'None') {
+				
+				switch(zone.bias) {
+					
+					case 20:
+						zone.capturedBy = 'BlueTeam';
+						return {b: 20, c: 'blu'};
+					case -20:
+						zone.capturedBy = 'RedTeam';
+						return {b: -20, c: 'red'};
+					default:
+						return {b: zone.bias, c: ''}
+					
+				}
+				
+			}
+			else {
+				
+				if(Math.sign(prevValue) != Math.sign(zone.bias)) {
+					zone.capturedBy = 'None';
+					return {b: zone.bias, c: 'uncap'}
+				}
+				
+				return {b: zone.bias, c: ''}
+				
+			}
+			
+		}
+		
+		try{
+		tick++;
+		
+		if(tick % 4 != 0) {
+			return;
+		}
+		
+		let playerPosList = [];
+		for(let p in this.omegga.players) {
+			const player = this.omegga.players[p];
+			if(player.name in deadPlayers) {
+				continue;
+			}
+			playerPosList.push({player: player, pos: await player.getPosition()});
+		}
+		//console.log(playerPosList);
+		for(let z in zones) {
+			
+			const zone = zones[z];
+			
+			let captureTeam = "";
+			let captureRate = 0;
+			let playersInZone = [];
+			for(let p in playerPosList) {
+				
+				const player = playerPosList[p];
+				
+				if(!(Math.abs(zone.pos[0] - player.pos[0]) < zone.size[0] && Math.abs(zone.pos[1] - player.pos[1]) < zone.size[1])) {
+					continue;
+				}
+				//console.log(zone);
+				const team = await this.getTeam(1, player.player);
+				//console.log(team);
+				if(team == null) {
+					continue;
+				}
+				
+				if(captureTeam == '') {
+					captureTeam = team.name;
+					captureRate++;
+				}
+				else if(captureTeam == team.name) {
+					captureRate++;
+				}
+				else if(captureTeam != team.name) {
+					captureTeam = 'multiple';
+				}
+				
+				playersInZone.push(player.player.name);
+				
+			}
+			
+			let result = 0;
+			//console.log(captureTeam);
+			switch(captureTeam) {
+				case 'multiple':
+					for(let p in playersInZone) {
+						this.omegga.middlePrint(playersInZone[p], 'There is an enemy team in the zone!');
+					}
+					break;
+				case 'RedTeam':
+					if(zone.bias == -20) {
+						break;
+					}
+					result = changeZoneBias(z, -captureRate);
+					let redBias1 = ('|').repeat(Math.min(20 + result.b, 20)) + clr.red + ('|').repeat(Math.max(-result.b, 0)) + '</>';
+					let bluBias1 = clr.blu + ('|').repeat(Math.max(result.b, 0)) + '</>' + ('|').repeat(Math.min(20 - result.b, 20));
+					for(let p in playersInZone) {
+						this.omegga.middlePrint(playersInZone[p], redBias1 + bluBias1);
+					}
+					break;
+				case 'BlueTeam':
+					if(zone.bias == 20) {
+						break;
+					}
+					result = changeZoneBias(z, captureRate);
+					let redBias2 = ('|').repeat(Math.min(20 + result.b, 20)) + clr.red + ('|').repeat(Math.max(-result.b, 0)) + '</>';
+					let bluBias2 = clr.blu + ('|').repeat(Math.max(result.b, 0)) + '</>' + ('|').repeat(Math.min(20 - result.b, 20));
+					for(let p in playersInZone) {
+						this.omegga.middlePrint(playersInZone[p], redBias2 + bluBias2);
+					}
+					break;
+			}
+			switch(result.c) {
+				case 'red':
+					this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + zone.name + '!<>');
+					if(zones.filter(z => z.capturedBy == 'RedTeam').length == zones.length) {
+						redpoints = zones.length;
+						this.announceEnd();
+					}
+					break;
+				case 'blu':
+					this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + zone.name + '!<>');
+					if(zones.filter(z => z.capturedBy == 'BlueTeam').length == zones.length) {
+						blupoints = zones.length;
+						this.announceEnd();
+					}
+					break;
+				case 'uncap':
+					this.omegga.broadcast('<b>' + clr.ylw + zone.name + '</> has been uncaptured.<>');
+					break;
+			}
+			
+		}
+		
+		
+		}catch(e){console.log(e);}
+	}
+	
+	async ctftick() {
+		try{
 		if(gracetime > -1 && !roundended) {
 			gracetime -= 0.5;
 			switch(gracetime) {
@@ -567,6 +857,9 @@ class TrenchWarfare {
 					return;
 				}
 				const pos = await player.getPosition();
+				if(pos[2] >= oldrpos[2] + 50) {
+					prefallrpos = pos;
+				}
 				oldrpos = pos;
 				posl.push(pos);
 			}
@@ -576,6 +869,9 @@ class TrenchWarfare {
 					return;
 				}
 				const pos = await player.getPosition();
+				if(pos[2] >= oldbpos[2] + 50) {
+					prefallbpos = pos;
+				}
 				oldbpos = pos;
 				posl.push(pos);
 			}
@@ -592,38 +888,7 @@ class TrenchWarfare {
 			}
 		}
 		//}catch(e){console.log(e)}
-		// Grenade stuff
-		try{
-		if(!checkForGrenades) {
-			return;
-		}
-		let grenades = await this.getGrenades();
-		let exploded = activeGrenades.filter(g => !grenades.includes(g.id));
-		if(exploded.length > 0) {
-			//console.log(exploded);
-			for(let e in exploded) {
-				this.explosionSubdivide(exploded[e].pos,60);
-			}
-		}
-		let newList = [];
-		if(grenades.length == 0) {
-			activeGrenades = [];
-			return;
-		}
-		//console.log(grenades.length);
-		for(let g in grenades) {
-			const grenade = grenades[g];
-			let pos = await this.getGrenadePos(grenade);
-			if(!pos) {
-				pos = activeGrenades.find(g => g.id == grenade);
-				if(pos == null) {
-					continue;
-				}
-				pos = pos.pos;
-			}
-			newList.push({id: grenade, pos: pos});
-		}
-		activeGrenades = newList;
+		
 		}catch(e){console.log(e)}
 	}
 	
@@ -643,6 +908,9 @@ class TrenchWarfare {
 			this.omegga.clearRegion({center: brick.p, extent: brick.s});
 			const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 			tl.splice(tlind, 1);
+			if(brick.dontSubdivide) {
+				continue;
+			}
 			
 			let finish = false;
 			let cycles = 0;
@@ -736,6 +1004,8 @@ class TrenchWarfare {
 	}
 	
 	async announceEnd() {
+		//try{
+		console.log("Round end");
 		await this.omegga.nextRoundMinigame(0);
 		roundended = true;
 		for(var i in blockinv) {
@@ -756,7 +1026,7 @@ class TrenchWarfare {
 		else {
 			this.omegga.broadcast(clr.imp + '<b>Draw.</>');
 		}
-		
+		try{
 		const players = this.omegga.players;
 		for(let p in players) {
 			const player = players[p];
@@ -773,7 +1043,7 @@ class TrenchWarfare {
 				this.clearClassWeapons(player, clas);
 			}
 		}
-		
+		}catch(e){console.log(e)}
 		this.omegga.broadcast('<b>' + clr.red + redpoints + '</> - ' + clr.blu + blupoints + '</>');
 		redpoints = 0;
 		blupoints = 0;
@@ -790,17 +1060,35 @@ class TrenchWarfare {
 		gracetime = 60;
 		voted = [];
 		mapchoice = [];
+		zones = [];
 		this.omegga.broadcast(clr.ylw +'<b>You have 15 seconds to ' + clr.rst + '/vote (1 - 4)' + clr.ylw + ' for a new map!</>');
 		
 		let mapsel = JSON.parse(JSON.stringify(maps));
 		for(var i=0;i<4 && i<maps.length;i++) {
 			const rand = Math.floor(Math.random() * mapsel.length);
 			const map = mapsel[rand];
-			mapchoice.push(map.substr(0,map.length - 4));
+			const mapFile = map.substr(0,map.length - 4);
+			mapchoice.push(mapFile);
 			mapsel.splice(rand,1);
+			
+			const mapFileSplit = mapFile.split('_');
+			
+			let comma = ',';
+			if(i === 3) {
+				comma = '';
+			}
+			
+			if(mapFileSplit.length === 1) {
+				this.omegga.broadcast('<b>' + clr.rst + mapFile + ' </><b> Mode: </>' + modeColor.CTF + '</>' + comma + '<b>');
+			}
+			else {
+				this.omegga.broadcast('<b>' + clr.rst + mapFileSplit[1] + ' </><b>  Mode: </>' + modeColor[mapFileSplit[0]] + '</>' + comma + '<b>');
+			}
+			//this.omegga.broadcast('<b>' + clr.rst +);
 		}
-		this.omegga.broadcast('<b>' + clr.rst + mapchoice.join('</>,</>\n<b>' + clr.rst) + '</>');
+		//this.omegga.broadcast('<b>' + clr.rst + mapchoice.join('</>,</>\n<b>' + clr.rst) + '</>');
 		setTimeout(() => this.loadmap(), 15000);
+		//}catch(e){console.error(e)}
 	}
 	
 	async loadmap() {
@@ -871,17 +1159,49 @@ class TrenchWarfare {
 							bludef = [pos[0],pos[1],pos[2] + brick.size[2]];
 							bluflagpos = bludef;
 							break;
+						case 'zone':
+							zones.push({name: brick.components.BCD_Interact.Message, pos: pos, size: brick.size, bias: 0, capturedBy: 'None'});
+							break;
+						case 'destructable':
+							tl.push({p: pos, s: brick.size, c: brick.color, dontSubdivide: true});
+							break;
 					}
 				}
 			}
 		}
-		this.omegga.broadcast('<b>Loading map: ' + clr.rst + mapid.split('.')[0] + ' </>by ' + clr.ylw + ownerl.join('</>, ' + clr.ylw) + '</>');
+		
+		const mapName = mapid.split('.')[0];
+		const mapMode = mapName.split('_');
+		
+		switch(mapMode[0]) {
+			
+			case 'ZC':
+				mode = 'ZC';
+				gracetime = -1;
+				break;
+			case 'CTF':
+				mode = 'CTF';
+				break;
+			default:
+				mode = 'CTF';
+				break;
+			
+		}
+		
+		if(mapMode.length === 1) {
+			this.omegga.broadcast('<b>Loading map: ' + clr.rst + mapName + ' </>by ' + clr.ylw + ownerl.join('</>, ' + clr.ylw) + '</>');
+		}
+		else {
+			this.omegga.broadcast('<b>Loading map: ' + clr.rst + mapMode[1] + ' </>by ' + clr.ylw + ownerl.join('</>, ' + clr.ylw) + '</>');
+		}
+		
 		await this.omegga.loadSaveData(map, {quiet: true});
 		this.omegga.resetMinigame(0);
 		roundended = false;
 	}
 	
 	async setupClass(plyr, clas) {
+		try{
 		switch(clas.class) {
 			case 'assault':
 				plyr.giveItem(weapons['classic assault rifle']);
@@ -900,12 +1220,22 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['light machine gun']);
 				plyr.giveItem(weapons['shotgun']);
 				break;
+			case 'medic':
+				plyr.giveItem(weapons['bullpup smg']);
+				plyr.giveItem(weapons['shotgun']);
+				plyr.giveItem(weapons['health potion']);
+				plyr.giveItem(weapons['health potion']);
+				break;
 		}
 		plyr.giveItem(weapons['impact grenade']);
-		plyr.giveItem(weapons['stick grenade']);
+		if(clas.class != 'trenchie' && clas.class != 'medic') {
+			plyr.giveItem(weapons['stick grenade']);
+		}
+		}catch(e){console.log(e)}
 	}
 	
 	async clearClassWeapons(plyr, clas) {
+		try{
 		switch(clas.class) {
 			case 'assault':
 				plyr.takeItem(weapons['classic assault rifle']);
@@ -924,9 +1254,15 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['light machine gun']);
 				plyr.takeItem(weapons['shotgun']);
 				break;
+			case 'medic':
+				plyr.takeItem(weapons['bullpup smg']);
+				plyr.takeItem(weapons['shotgun']);
+				plyr.takeItem(weapons['health potion']);
+				plyr.takeItem(weapons['health potion']);
 		}
 		plyr.takeItem(weapons['impact grenade']);
 		plyr.takeItem(weapons['stick grenade']);
+		}catch(e){console.log(e)}
 	}
 	
 	async init() {
@@ -961,8 +1297,8 @@ class TrenchWarfare {
 			const online = this.omegga.players.length;
 			if(votetime > 30) {
 				voted.push(name);
-				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (online - voted.length) + '  more people need to vote to skip this map.</>');
-				if(voted.length === online) {
+				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (Math.ceil(online * 0.66) - voted.length) + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
+				if(voted.length >= Math.ceil(online * 0.66)) {
 					this.omegga.broadcast(clr.ylw + '<b>Enough people have voted to skip the map!</>');
 					votetime = 29;
 					voted = [];
@@ -990,8 +1326,16 @@ class TrenchWarfare {
 				return;
 			}
 			voted.push({p: name, v: vote});
+			
+			const mapName = mapchoice[vote - 1];
+			const mapMode = mapName.split('_');
+			let resultMap = mapName;
+			if(mapMode.length > 1) {
+				resultMap = mapMode[1];
+			}
+			
 			this.omegga.whisper(name, clr.ylw + '<b>You have voted!</>');
-			this.omegga.broadcast('<b>' + clr.ylw + name + '</> has voted for ' + clr.dgrn + mapchoice[vote - 1] + '</>');
+			this.omegga.broadcast('<b>' + clr.ylw + name + '</> has voted for ' + clr.dgrn + resultMap + '</>');
 		})
 		.on('cmd:t', async (name, ...args) => {
 			let message = args.join(' ');
@@ -1023,6 +1367,19 @@ class TrenchWarfare {
 				bluflagpos = bludef;
 				bluupd = true;
 			}
+			
+			if(player.name in deadPlayers) {
+				
+				let deadPlayerPos = deadPlayers[player.name].pos;
+				deadPlayerPos[0] = Math.round(deadPlayerPos[0] / 10) * 10;
+				deadPlayerPos[1] = Math.round(deadPlayerPos[1] / 10) * 10;
+				deadPlayerPos[2] -= 11;
+				this.omegga.writeln('Bricks.ClearRegion ' + deadPlayerPos.join(' ') + ' 10 10 14 00000000-0000-0000-0000-000000000131');
+				
+				delete deadPlayers[player.name];
+				
+			}
+			
 			const players = this.omegga.players;
 			playerc = players.length;
 			if(players.length === 1) {
@@ -1033,7 +1390,7 @@ class TrenchWarfare {
 			const f = classlist.filter(cl => cl.player == player.name);
 			let clas = 0;
 			if(f.length === 0) {
-				clas = {player: player.name, class: 'assault', upd: true, timeout: 0};
+				clas = {player: player.name, class: 'assault', nextClass: "", timeout: 0};
 				classlist.push(clas);
 			}
 			else {
@@ -1096,15 +1453,16 @@ class TrenchWarfare {
 				case 'sniper':
 				case 'trenchie':
 				case 'machinegunner':
-					if(clas.class != 'trenchie') {
-						classlist[index].upd = false;
-					}
-					classlist[index].class = args.join(' ');
+				case 'medic':
+					//if(clas.class != 'trenchie') {
+						//classlist[index].upd = false;
+					//}
+					classlist[index].nextClass = args.join(' ');
 					classlist[index].timeout = 30;
 					this.omegga.whisper(name, '<b>Class has been set to: ' + clr.rst + args.join(' ').toLowerCase() + '</>. This class will be applied when you respawn.</>');
 					break;
 				default:
-					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner</>');
+					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner, medic</>');
 					break;
 			}
 		})
@@ -1116,25 +1474,25 @@ class TrenchWarfare {
 				this.omegga.whisper(name, '<b>' + clr.dgrn + '/t </> team chat.</>');
 				this.omegga.whisper(name, '<b>' + clr.dgrn + '/skip </> vote skip a map.</>');
 				this.omegga.whisper(name, '<b>' + clr.dgrn + '/give </> gives trench to others. First you input the number, then the player.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/vote </> vote for the nest map when the round is neded.</>');
+				this.omegga.whisper(name, '<b>' + clr.dgrn + '/vote </> vote for the next map when the round is ended.</>');
 				return;
 			}
 			this.omegga.whisper(name, '<b>Welcome to trench warfare! Your goal is to capture the flag of the enemy team 3 times.</>');
 			this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
 			this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
-			this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/shotgunner) to change your class. The classes changes once you respawn.</>');
+			this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn.</>');
 			this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 		});
 		const players = this.omegga.players;
 		playerc = players.length;
 		for(var p in players) {
 			const player = players[p];
-			classlist.push({player: player.name, class: 'assault', upd: true, timeout: 0});
+			classlist.push({player: player.name, class: 'assault', nextClass: "", timeout: 0});
 		}
 		await this.initmaps();
 		setTimeout(() => this.loadminig(), 5000);
 		this.announceEnd();
-		flaginterval = setInterval(() => this.ctftick(), 500);
+		flaginterval = setInterval(() => this.generalTick(), 500);
 		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote'] };
 	}
 	async loadminig() {
@@ -1147,7 +1505,27 @@ class TrenchWarfare {
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
 		}
 	}
+	
+	async placeGravestone(position, color) {
+		
+		//console.log(gravestoneBRS.bricks.findIndex(b => b.color === 2));
+		//console.log(gravestoneBRS.bricks);
+		let gravestone = gravestoneBRS.bricks;
+		gravestone[3].color = color;
+		const owners = [{
+		id: '00000000-0000-0000-0000-000000000131',
+		name: 'Gravestone',
+		bricks: 0
+		}];
+		const roundX = Math.round(position[0] / 10) * 10;
+		const roundY = Math.round(position[1] / 10) * 10;
+		this.omegga.loadSaveData({...gravestoneBRS, bricks: gravestone, brick_owners: owners}, {quiet: true, offX: roundX, offY: roundY, offZ: position[2] - 25});
+		
+		
+	}
+	
 	async pluginEvent(event, from, ...args) {
+		try{
 		if(event === 'death') {
 			if(args[0] == null) {
 				return;
@@ -1157,15 +1535,25 @@ class TrenchWarfare {
 			if(team == null) {
 				return;
 			}
+			
+			const plyr = await this.omegga.getPlayer(player.id);
+			let playerPos = [0,0,0];
+			if(plyr != null) {
+				playerPos = await plyr.getPosition();
+			}
+			
+			deadPlayers[player.name] = {pos: playerPos, team: team.name, heal: 0};
+			//console.log(team);
 			const tclr = clr[team.name.substr(0,3).toLowerCase()];
+			this.placeGravestone(playerPos, team.color);
+			
 			if(player.name == redcarrier) {
-				const plyr = await this.omegga.getPlayer(player.id);
 				let pos = reddef;
 				if(plyr != null) {
-					pos = await plyr.getPosition();
+					pos = playerPos;
 				}
 				pos[2] += 20;
-				if(this.checkColliding(pos, [10,10,20])) {
+				if(await this.checkColliding(pos, [10,10,20])) {
 					pos = oldrpos;
 				}
 				else {
@@ -1177,6 +1565,7 @@ class TrenchWarfare {
 					redflagpos = reddef;
 					redupd = true;
 					return;
+					//pos = prefallrpos;
 				}
 				redtimout = 40;
 				this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.red + 'red flag!</>');
@@ -1184,13 +1573,12 @@ class TrenchWarfare {
 				redupd = true;
 			}
 			if(player.name == blucarrier) {
-				const plyr = await this.omegga.getPlayer(player.id);
 				let pos = bludef;
 				if(plyr != null) {
-					pos = await plyr.getPosition();
+					pos = playerPos;
 				}
 				pos[2] += 20;
-				if(this.checkColliding(pos, [10,10,20])) {
+				if(await this.checkColliding(pos, [10,10,20])) {
 					pos = oldbpos;
 				}
 				else {
@@ -1202,6 +1590,7 @@ class TrenchWarfare {
 					bluflagpos = bludef;
 					bluupd = true;
 					return;
+					//pos = prefallbpos;
 				}
 				blutimout = 40;
 				this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.blu + 'blue flag!</>');
@@ -1212,7 +1601,28 @@ class TrenchWarfare {
 		if(event === 'spawn') {
 			const player = args[0].player;
 			const index = classlist.findIndex(cl => cl.player == player.name);
-			classlist[index].upd = true;
+			//classlist[index].upd = true;
+			if(classlist[index].nextClass) {
+				classlist[index].class = classlist[index].nextClass;
+				classlist[index].nextClass = "";
+			}
+			
+			if(player.name in deadPlayers) {
+				
+				let deadPlayerPos = deadPlayers[player.name].pos;
+				deadPlayerPos[0] = Math.round(deadPlayerPos[0] / 10) * 10;
+				deadPlayerPos[1] = Math.round(deadPlayerPos[1] / 10) * 10;
+				deadPlayerPos[2] -= 11;
+				this.omegga.writeln('Bricks.ClearRegion ' + deadPlayerPos.join(' ') + ' 10 10 14 00000000-0000-0000-0000-000000000131');
+				
+				delete deadPlayers[player.name];
+				
+			}
+			
+			if(player.name in revivePos) {
+				this.omegga.writeln("Chat.Command /TP \"" + player.name + "\" " + revivePos[player.name].join(" ") + " 0");
+				delete revivePos[player.name];
+			}
 			if(gracetime > 0) {
 				return;
 			}
@@ -1224,6 +1634,7 @@ class TrenchWarfare {
 			const clas = f[0];
 			this.setupClass(plyr, clas);
 		}
+		}catch(e){console.log(e)}
 	}
 	async stop() {
 		const deathevents = await this.omegga.getPlugin('deathevents');
