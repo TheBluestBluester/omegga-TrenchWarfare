@@ -1,5 +1,5 @@
 # TrenchWarfare
-Dig trench n fight for flags.
+Dig trench n fight for stuff.
 
 If the minigame and the enviroment are not already setup the plugin will do it automatically.
 You can change the enviroment and the minigame in the "Minig and Env" folder.
@@ -16,15 +16,22 @@ The included minigame uses the default color pallete.
 
 #### trench
 The trench.
+Adding undiggable will make the trench undiggable. This trench will also not be effected by explosives.
 #### redflag
 Red team's flag
 #### blueflag
 Blue team's flag
+#### destructable
+Destructable bricks which are effected by explosives.
+#### zone
+The zone. You must input zone order into Message. 1 to X is red to blue.
 
 #### Notes:
 Trench cannot be placed on non-trench bricks.
 
 The trench bricks MUST be 2x cubes, 4x cubes, 16x, 32x, 64x, etc.
+
+For the modes to work add the following prefixes: CTF_ for capture-the-flag, ZC_ for zone control. Maps with no prefix will default to CTF.
 
 #### Adding maps
 After your map has been completed you can simply put the map BRS file into the Map folder in the plugin and then restart the plugin.
