@@ -69,6 +69,7 @@ let blutimout = 0;
 // CTF
 // ZC
 let zones = [];
+let middleZone = 2;
 // ZC
 let votes = [];
 let maps = [];
@@ -339,7 +340,8 @@ class TrenchWarfare {
 				return;
 			}
 			hit = hit.h;
-			const tlind = tl.findIndex(b => b.p.join(' ') === pos.join(' '));
+			const tlind = tl.findIndex(b => b.p.join('') == pos.join(''));
+			//console.log(tlind);
 			const cubelist = await this.Subdivide(hit, pos, size, 10);
 			const defaultb = brsbrick.bricks[0];
 			let brlist = [];
@@ -349,7 +351,7 @@ class TrenchWarfare {
 				brick.size = br.s;
 				brick.position = br.p;
 				brick.material_index = 0;
-				brick.color = trenchcolor;
+				brick.color = tl[tlind].c;
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				brlist.push(brick);
 				tl.push({p: br.p, s: br.s, c: tl[tlind].c});
@@ -632,6 +634,16 @@ class TrenchWarfare {
 		
 	}
 	
+	async recalculatePoints() {
+		redpoints = zones.filter(z => z.capturedBy == 'RedTeam').length;
+		blupoints = zones.filter(z => z.capturedBy == 'BlueTeam').length;
+		//console.log(redpoints);
+		//console.log(blupoints);
+		if(redpoints == zones.length || blupoints == zones.length) {
+			this.announceEnd();
+		}
+	}
+	
 	async zctick() {
 		
 		function changeZoneBias(index, direction) {
@@ -684,10 +696,19 @@ class TrenchWarfare {
 			playerPosList.push({player: player, pos: await player.getPosition()});
 		}
 		//console.log(playerPosList);
+		const middle = (redpoints + zones.length - 1 - blupoints) / 2;
+		//console.log(middle);
+		let activeZones = [middle];
+		if(middle % 1 != 0) {
+			activeZones = [middle - 0.5, middle + 0.5];
+		}
+		//console.log(middle);
+		//console.log(activeZones);
 		for(let z in zones) {
 			
 			const zone = zones[z];
-			
+			const active = activeZones.includes(Number(z));
+			//console.log(typeof activeZones[0], typeof z);
 			let captureTeam = "";
 			let captureRate = 0;
 			let playersInZone = [];
@@ -732,6 +753,12 @@ class TrenchWarfare {
 					if(zone.bias == -20) {
 						break;
 					}
+					if(!active) {
+						for(let p in playersInZone) {
+							this.omegga.middlePrint(playersInZone[p], 'You need to capture the previous zones before capturing this one!');
+						}
+						break;
+					}
 					result = changeZoneBias(z, -captureRate);
 					let redBias1 = ('|').repeat(Math.min(20 + result.b, 20)) + clr.red + ('|').repeat(Math.max(-result.b, 0)) + '</>';
 					let bluBias1 = clr.blu + ('|').repeat(Math.max(result.b, 0)) + '</>' + ('|').repeat(Math.min(20 - result.b, 20));
@@ -741,6 +768,12 @@ class TrenchWarfare {
 					break;
 				case 'BlueTeam':
 					if(zone.bias == 20) {
+						break;
+					}
+					if(!active) {
+						for(let p in playersInZone) {
+							this.omegga.middlePrint(playersInZone[p], 'You need to capture the previous zones before capturing this one!');
+						}
 						break;
 					}
 					result = changeZoneBias(z, captureRate);
@@ -753,25 +786,20 @@ class TrenchWarfare {
 			}
 			switch(result.c) {
 				case 'red':
-					this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + zone.name + '!<>');
-					if(zones.filter(z => z.capturedBy == 'RedTeam').length == zones.length) {
-						redpoints = zones.length;
-						this.announceEnd();
-					}
+					this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + 'zone ' + zone.order + '!<>');
+					this.recalculatePoints();
 					break;
 				case 'blu':
-					this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + zone.name + '!<>');
-					if(zones.filter(z => z.capturedBy == 'BlueTeam').length == zones.length) {
-						blupoints = zones.length;
-						this.announceEnd();
-					}
+					this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
+					this.recalculatePoints();
 					break;
 				case 'uncap':
-					this.omegga.broadcast('<b>' + clr.ylw + zone.name + '</> has been uncaptured.<>');
+					this.omegga.broadcast('<b>' + clr.ylw + 'zone ' + zone.order + '</> has been uncaptured.<>');
 					break;
 			}
 			
 		}
+		
 		
 		
 		}catch(e){console.log(e);}
@@ -893,11 +921,31 @@ class TrenchWarfare {
 	}
 	
 	async explosionSubdivide(pos, radius) {
+		
+		function sphereBoxIntersect(sPos, r, bPos, bSize) {
+			
+			const closestPoint = [
+				Math.min(bSize[0], Math.max(sPos[0] - bPos[0], -bSize[0])),
+				Math.min(bSize[1], Math.max(sPos[1] - bPos[1], -bSize[1])),
+				Math.min(bSize[2], Math.max(sPos[2] - bPos[2], -bSize[2]))
+			];
+			
+			const distance = Math.sqrt(
+				(closestPoint[0] + bPos[0] - sPos[0]) ** 2 +
+				(closestPoint[1] + bPos[1] - sPos[1]) ** 2 +
+				(closestPoint[2] + bPos[2] - sPos[2]) ** 2
+			);
+			
+			return distance <= r;
+			
+		}
+		
+		//Math.abs(pos[0] - b.p[0]) < b.s[0] + radius * 1.2 &&
+		//Math.abs(pos[1] - b.p[1]) < b.s[1] + radius * 1.2 &&
+		//Math.abs(pos[2] - b.p[2]) < b.s[2] + radius * 1.2
+		
 		try {
-		let affectedBricks = tl.filter(b => Math.abs(pos[0] - b.p[0]) < b.s[0] + radius * 1.2 &&
-			Math.abs(pos[1] - b.p[1]) < b.s[1] + radius * 1.2 &&
-			Math.abs(pos[2] - b.p[2]) < b.s[2] + radius * 1.2
-		);
+		let affectedBricks = tl.filter(b => sphereBoxIntersect(pos, radius, b.p, b.s) && !b.ie);
 		for(let ab in affectedBricks) {
 			let brick = affectedBricks[ab];
 			
@@ -1160,7 +1208,8 @@ class TrenchWarfare {
 							bluflagpos = bludef;
 							break;
 						case 'zone':
-							zones.push({name: brick.components.BCD_Interact.Message, pos: pos, size: brick.size, bias: 0, capturedBy: 'None'});
+							const order = Number(brick.components.BCD_Interact.Message);
+							zones.push({pos: pos, size: brick.size, bias: 0, capturedBy: 'None', order: order});
 							break;
 						case 'destructable':
 							tl.push({p: pos, s: brick.size, c: brick.color, dontSubdivide: true});
@@ -1178,6 +1227,21 @@ class TrenchWarfare {
 			case 'ZC':
 				mode = 'ZC';
 				gracetime = -1;
+				middleZone = zones.length / 2 + 0.5;
+				for(let z in zones) {
+					let zone = zones[z];
+					if(zone.order < middleZone) {
+						zone.bias = -20;
+						zone.capturedBy = 'RedTeam';
+						redpoints++;
+					}
+					if(zone.order > middleZone) {
+						zone.bias = 20;
+						zone.capturedBy = 'BlueTeam';
+						blupoints++;
+					}
+				}
+				zones.sort((a, b) => a.order - b.order);
 				break;
 			case 'CTF':
 				mode = 'CTF';
@@ -1519,7 +1583,10 @@ class TrenchWarfare {
 		}];
 		const roundX = Math.round(position[0] / 10) * 10;
 		const roundY = Math.round(position[1] / 10) * 10;
-		this.omegga.loadSaveData({...gravestoneBRS, bricks: gravestone, brick_owners: owners}, {quiet: true, offX: roundX, offY: roundY, offZ: position[2] - 25});
+		const roundZ = Math.round(position[2]);
+		this.omegga.loadSaveData({...gravestoneBRS, bricks: gravestone, brick_owners: owners}, {quiet: true, offX: roundX, offY: roundY, offZ: roundZ - 25});
+		
+		tl.push({p: [roundX, roundY, roundZ], s: [10,10,14], c: 0, ie: true});
 		
 		
 	}
@@ -1612,7 +1679,11 @@ class TrenchWarfare {
 				let deadPlayerPos = deadPlayers[player.name].pos;
 				deadPlayerPos[0] = Math.round(deadPlayerPos[0] / 10) * 10;
 				deadPlayerPos[1] = Math.round(deadPlayerPos[1] / 10) * 10;
+				deadPlayerPos[2] = Math.round(deadPlayerPos[2]);
+				tl.splice(tl.indexOf(t => t.p.join('') == deadPlayerPos.join('')), 1);
+				
 				deadPlayerPos[2] -= 11;
+				
 				this.omegga.writeln('Bricks.ClearRegion ' + deadPlayerPos.join(' ') + ' 10 10 14 00000000-0000-0000-0000-000000000131');
 				
 				delete deadPlayers[player.name];
