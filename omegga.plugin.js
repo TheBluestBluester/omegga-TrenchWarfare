@@ -46,6 +46,8 @@ let mode = "";
 let redpoints = 0;
 let blupoints = 0;
 
+let lineBuild = {};
+
 // CTF
 let gracetime = 60;
 
@@ -289,11 +291,122 @@ class TrenchWarfare {
 					posh = [Math.floor((rel[0] + offset[0]) * 0.05) * 20 + pos[0] + offset2[0], Math.floor((rel[1] + offset[1]) * 0.05) * 20 + pos[1] + offset2[1], Math.floor((rel[2] + offset[2]) * 0.05) * 20 + pos[2] + offset2[2]];
 					posh = [posh[0] + n[0] * 10, posh[1] + n[1] * 10, posh[2] + n[2] * 10];
 				}
-				let brick = JSON.parse(JSON.stringify(brsbrick.bricks[0]));
+				
+				let brick = this.copyBrick(brsbrick.bricks[0]);
 				brick.size = [blocksize,blocksize,blocksize];
 				brick.material_index = 0;
 				brick.color = team.color;
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
+				
+				if(data.player.name in lineBuild) {
+					
+					let startPos = lineBuild[player.name];
+					if(startPos.length === 0) {
+						lineBuild[player.name] = posh;
+						this.omegga.middlePrint(player.name, '<b>Line start set.</>');
+						return;
+					}
+					const relative = [
+						posh[0] - startPos[0],
+						posh[1] - startPos[1],
+						posh[2] - startPos[2]
+					];
+					
+					let brickList = [];
+					let dir = 0;
+					if(Math.abs(relative[1]) > Math.abs(relative[0])) {
+						dir = 1;
+					}
+					if(relative[2] < 0) {
+						startPos[2] += relative[2]
+						relative[2] *= -1;
+					}
+					
+					let nextBlockPos = this.copyArray(startPos);
+					if(relative[0] === 0 || relative[1] === 0) {
+						
+						for(let i=0;i<Math.abs(relative[dir]) * 0.05 + 1;i++) {
+							
+							for(let i2=0;i2<relative[2] * 0.05 + 1;i2++) {
+								brick.position = this.copyArray(nextBlockPos);
+								brick.position[2] += 20 * i2;
+								const colliding = await this.checkColliding(brick.position, [10,10,10]);
+								if(colliding) {
+									continue;
+								}
+								
+								brickList.push(this.copyBrick(brick));
+								tl.push({p: brick.position, s: brick.size, c: team.color});
+							}
+							
+							nextBlockPos[dir] += 20 * Math.sign(relative[dir]);
+							
+						}
+						
+					}
+					else {
+						
+						let cycles = 0;
+						while(cycles < 100) {
+							
+							cycles++;
+							
+							for(let i2=0;i2<relative[2] * 0.05 + 1;i2++) {
+								brick.position = this.copyArray(nextBlockPos);
+								brick.position[2] += 20 * i2;
+								//console.log(brick.position);
+								const colliding = await this.checkColliding(brick.position, [10,10,10]);
+								if(colliding) {
+									continue;
+								}
+								
+								brickList.push(this.copyBrick(brick));
+								tl.push({p: brick.position, s: brick.size, c: team.color});
+							}
+							
+							nextBlockPos[dir] += 20 * Math.sign(relative[dir]);
+							const progress = (nextBlockPos[dir] - startPos[dir]) / relative[dir];
+							
+							if(progress > 1) {
+								break;
+							}
+							
+							if(relative[1-dir] * progress - (nextBlockPos[1-dir] - startPos[1-dir]) < -10) {
+								nextBlockPos[1-dir] -= 20;
+							}
+							else if(relative[1-dir] * progress - (nextBlockPos[1-dir] - startPos[1-dir]) > 10) {
+								nextBlockPos[1-dir] += 20;
+							}
+							
+						}
+						
+					}
+					
+					if(brickList.length > inv.count) {
+						this.omegga.middlePrint(player.name, '<b>Not enough trench! ' + inv.count + '/' + brickList.length + '</>');
+						return;
+					}
+					if(brickList.length === 0) {
+						this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
+						return;
+					}
+					
+					const toload = {...brsbrick, bricks: brickList};
+					this.omegga.loadSaveData(toload, {quiet: true});
+					
+					if(builder) {
+						inv.count -= brickList.length * 0.5;
+					}
+					else {
+						inv.count -= brickList.length;
+					}
+					blockinv[index] = inv;
+					this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + ' (-' + brickList.length + ')</>');
+					lineBuild[player.name] = [];
+					return
+					
+				}
+				
 				brick.position = posh;
 				const toload = {...brsbrick, bricks: [brick]};
 				if(
@@ -341,13 +454,13 @@ class TrenchWarfare {
 			}
 			hit = hit.h;
 			const tlind = tl.findIndex(b => b.p.join('') == pos.join(''));
-			//console.log(tlind);
+			
 			const cubelist = await this.Subdivide(hit, pos, size, 10);
 			const defaultb = brsbrick.bricks[0];
 			let brlist = [];
 			for(var i in cubelist) {
 				const br = cubelist[i];
-				let brick = JSON.parse(JSON.stringify(defaultb));
+				let brick = this.copyBrick(defaultb);
 				brick.size = br.s;
 				brick.position = br.p;
 				brick.material_index = 0;
@@ -357,7 +470,7 @@ class TrenchWarfare {
 				tl.push({p: br.p, s: br.s, c: tl[tlind].c});
 			}
 			tl.splice(tlind, 1);
-			await this.omegga.clearRegion({center: pos, extent: size});
+			this.omegga.clearRegion({center: pos, extent: size});
 			inv.count++;
 			blockinv[index] = inv;
 			this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + '</>');
@@ -367,8 +480,49 @@ class TrenchWarfare {
 			}
 		}
 		catch(e) {
-			//console.log(e);
+			console.log(e);
 		}
+	}
+	
+	copyBrick = (brick) => {
+		
+		let newBrick = {};
+		
+		const entries = Object.entries(brick);
+		for(let [k, v] of entries) {
+			
+			let newValue = v;
+			
+			if(Array.isArray(newValue)) {
+				
+				let newArray = [];
+				for(let i in newValue) {
+					
+					newArray.push(newValue[i]);
+					
+				}
+				newValue = newArray;
+				
+			}
+			
+			newBrick[k] = newValue;
+			
+		}
+		
+		return newBrick;
+		
+	}
+	copyArray = (array) => {
+		
+		let newArray = [];
+		for(let i in array) {
+			
+			newArray.push(array[i]);
+			
+		}
+		
+		return newArray;
+		
 	}
 	
 	async isCrouching(player) {
@@ -847,7 +1001,7 @@ class TrenchWarfare {
 		}
 		if(redupd && gracetime < 0) {
 			redupd = false;
-			const redfbrs = JSON.parse(JSON.stringify(redbrs));
+			const redfbrs = redbrs;
 			redfbrs.brick_owners = [{
 			id: '00000000-0000-0000-0000-000000000333',
 			name: 'redflag',
@@ -862,7 +1016,7 @@ class TrenchWarfare {
 		}
 		if(bluupd && gracetime < 0) {
 			bluupd = false;
-			const blufbrs = JSON.parse(JSON.stringify(blubrs));
+			const blufbrs = blubrs;
 			blufbrs.brick_owners = [{
 			id: '00000000-0000-0000-0000-000000000111',
 			name: 'bluflag',
@@ -905,7 +1059,7 @@ class TrenchWarfare {
 			}
 			if(posl.length > 0) {
 				for(var p in posl) {
-					let brs = JSON.parse(JSON.stringify(markerbrs));
+					let brs = markerbrs;
 					brs.brick_owners = [{
 					id: '00000000-0000-0000-0000-000000000000',
 					name: 'PUBLIC',
@@ -995,7 +1149,7 @@ class TrenchWarfare {
 			let brlist = [];
 			for(let i in bricklist) {
 				const br = bricklist[i];
-				let brick = JSON.parse(JSON.stringify(defaultb));
+				let brick = this.copyBrick(defaultb);
 				brick.size = br.s;
 				brick.position = br.p;
 				brick.material_index = 0;
@@ -1417,6 +1571,18 @@ class TrenchWarfare {
 				}
 			}
 		})
+		.on('cmd:lbt', async name => {
+			
+			if(name in lineBuild) {
+				delete lineBuild[name];
+				this.omegga.whisper(name, '<b>Line build toggle: Disabled<b>');
+			}
+			else {
+				lineBuild[name] = [];
+				this.omegga.whisper(name, '<b>Line build toggle: Enabled<b>');
+			}
+			
+		})
 		.on('interact', async data => {
 			this.interfunc(data);
 		})
@@ -1532,20 +1698,42 @@ class TrenchWarfare {
 		})
 		.on('cmd:trench', async (name, args) => {
 			this.omegga.whisper(name, clr.rst + '<size="30"><b><i>Trench warfare</>');
-			if(args === 'commands') {
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/trench </> you are here.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/class </> switch classes. You will need to respawn to use one.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/t </> team chat.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/skip </> vote skip a map.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/give </> gives trench to others. First you input the number, then the player.</>');
-				this.omegga.whisper(name, '<b>' + clr.dgrn + '/vote </> vote for the next map when the round is ended.</>');
-				return;
+			switch(args) {
+				
+				case 'commands':
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/trench </> you are here.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/class </> switch classes. You will need to respawn to use one.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/t </> team chat.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/skip </> vote skip a map.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/give </> gives trench to others. First you input the number, then the player.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/vote </> vote for the next map when the round is ended.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/lbt </> toggles line building.</>');
+					break;
+				case 'classes':
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
+					this.omegga.whisper(name, '<b>Weapons: Classic assault rifle, Submachine gun, Grenades.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
+					this.omegga.whisper(name, '<b>Weapons: Sniper rifle, High-Power Pistol, Grenades.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
+					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potion, Impact Grenade.</>');
+					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Machinegunner</>');
+					this.omegga.whisper(name, '<b>Weapons: Light Machine Gun, Pump Shotgun, Grenades.</>');
+					this.omegga.whisper(name, '<b>Abilities: Can heal faster when crouching.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Medic</>');
+					this.omegga.whisper(name, '<b>Weapons: Bullpup SMG, Pump Shotgun, Health Potions.</>');
+					this.omegga.whisper(name, '<b>Abilities: When crouching the medic heals other teammates around them. Crouching near teammate gravestones revives the teammate.</>');
+					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll.</>');
+					break;
+				default:
+					this.omegga.whisper(name, '<b>Welcome to trench warfare!</>');
+					this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
+					this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
+					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn.</>');
+					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
+					break;
+				
 			}
-			this.omegga.whisper(name, '<b>Welcome to trench warfare! Your goal is to capture the flag of the enemy team 3 times.</>');
-			this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
-			this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
-			this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn.</>');
-			this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 		});
 		const players = this.omegga.players;
 		playerc = players.length;
@@ -1557,7 +1745,7 @@ class TrenchWarfare {
 		setTimeout(() => this.loadminig(), 5000);
 		this.announceEnd();
 		flaginterval = setInterval(() => this.generalTick(), 500);
-		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote'] };
+		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote', 'lbt'] };
 	}
 	async loadminig() {
 		const minigs = await this.omegga.getMinigames();
@@ -1610,7 +1798,7 @@ class TrenchWarfare {
 			}
 			
 			deadPlayers[player.name] = {pos: playerPos, team: team.name, heal: 0};
-			//console.log(team);
+			
 			const tclr = clr[team.name.substr(0,3).toLowerCase()];
 			this.placeGravestone(playerPos, team.color);
 			
@@ -1632,7 +1820,6 @@ class TrenchWarfare {
 					redflagpos = reddef;
 					redupd = true;
 					return;
-					//pos = prefallrpos;
 				}
 				redtimout = 40;
 				this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.red + 'red flag!</>');
@@ -1672,6 +1859,7 @@ class TrenchWarfare {
 			if(classlist[index].nextClass) {
 				classlist[index].class = classlist[index].nextClass;
 				classlist[index].nextClass = "";
+				this.omegga.whisper(player.name, clr.ylw + '<b>Note! To get more info on classes type /trench classes.</>');
 			}
 			
 			if(player.name in deadPlayers) {
