@@ -43,10 +43,10 @@
 			"teamName": "[Unassigned]",
 			"teamColor":
 			{
-				"r": 255,
-				"g": 255,
-				"b": 255,
-				"a": 255
+				"r": 0,
+				"g": 0,
+				"b": 0,
+				"a": 0
 			},
 			"playerRespawnTime": 7,
 			"teamSpawnMode": "UseTeamColoredSpawnBricks",
@@ -165,8 +165,8 @@
 				"bCanReachGoalPoints": true,
 				"bCanUseCheckPoints": true,
 				"bRememberCheckPointBetweenJoins": true,
-				"teamNameDistance": 1280,
-				"enemyNameDistanceMultiplier": 1,
+				"teamNameDistance": 5120,
+				"enemyNameDistanceMultiplier": 0.25,
 				"bEnableTeamHealthRegeneration": true,
 				"teamHealthRegenStartTime": 3,
 				"teamHealthRegenPerSecond": 5,
@@ -248,8 +248,8 @@
 				"bCanReachGoalPoints": true,
 				"bCanUseCheckPoints": true,
 				"bRememberCheckPointBetweenJoins": true,
-				"teamNameDistance": 1280,
-				"enemyNameDistanceMultiplier": 1,
+				"teamNameDistance": 5120,
+				"enemyNameDistanceMultiplier": 0.25,
 				"bEnableTeamHealthRegeneration": true,
 				"teamHealthRegenStartTime": 3,
 				"teamHealthRegenPerSecond": 5,
