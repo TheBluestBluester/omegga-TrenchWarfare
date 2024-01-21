@@ -166,6 +166,9 @@ class TrenchWarfare {
 				return;
 			}
 			const player = await this.omegga.getPlayer(data.player.id);
+			if(player == null) {
+				return;
+			}
 			const team = await this.getTeam(1, player);
 			if(team == null) {
 				return;
@@ -381,9 +384,13 @@ class TrenchWarfare {
 						}
 						
 					}
+					let mult = 1;
+					if(builder) {
+						mult = 0.5;
+					}
 					
-					if(brickList.length > inv.count) {
-						this.omegga.middlePrint(player.name, '<b>Not enough trench! ' + inv.count + '/' + brickList.length + '</>');
+					if(brickList.length * mult > inv.count) {
+						this.omegga.middlePrint(player.name, '<b>Not enough trench! ' + inv.count + '/' + (brickList.length * mult) + '</>');
 						return;
 					}
 					if(brickList.length === 0) {
@@ -394,14 +401,9 @@ class TrenchWarfare {
 					const toload = {...brsbrick, bricks: brickList};
 					this.omegga.loadSaveData(toload, {quiet: true});
 					
-					if(builder) {
-						inv.count -= brickList.length * 0.5;
-					}
-					else {
-						inv.count -= brickList.length;
-					}
+					inv.count -= brickList.length * mult;
 					blockinv[index] = inv;
-					this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + ' (-' + brickList.length + ')</>');
+					this.omegga.middlePrint(player.name, '<b>Trench: ' + inv.count + ' (-' + (brickList.length * mult) + ')</>');
 					lineBuild[player.name] = [];
 					return
 					
@@ -723,7 +725,7 @@ class TrenchWarfare {
 				}
 			}
 		}
-		}catch(e){console.log(e);}
+		
 		if(roundended) {
 			return;
 		}
@@ -785,7 +787,7 @@ class TrenchWarfare {
 			newList.push({id: grenade, pos: pos});
 		}
 		activeGrenades = newList;
-		
+		}catch(e){console.log(e);}
 	}
 	
 	async recalculatePoints() {
@@ -869,6 +871,9 @@ class TrenchWarfare {
 			for(let p in playerPosList) {
 				
 				const player = playerPosList[p];
+				if(player.player == null) {
+					continue;
+				}
 				
 				if(!(Math.abs(zone.pos[0] - player.pos[0]) < zone.size[0] && Math.abs(zone.pos[1] - player.pos[1]) < zone.size[1])) {
 					continue;
@@ -1439,8 +1444,8 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['shotgun']);
 				break;
 			case 'medic':
+				plyr.giveItem(weapons['tactical shotgun']);
 				plyr.giveItem(weapons['bullpup smg']);
-				plyr.giveItem(weapons['shotgun']);
 				plyr.giveItem(weapons['health potion']);
 				plyr.giveItem(weapons['health potion']);
 				break;
@@ -1473,8 +1478,8 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['shotgun']);
 				break;
 			case 'medic':
+				plyr.takeItem(weapons['tactical shotgun']);
 				plyr.takeItem(weapons['bullpup smg']);
-				plyr.takeItem(weapons['shotgun']);
 				plyr.takeItem(weapons['health potion']);
 				plyr.takeItem(weapons['health potion']);
 		}
@@ -1516,7 +1521,7 @@ class TrenchWarfare {
 			if(votetime > 30) {
 				voted.push(name);
 				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (Math.ceil(online * 0.66) - voted.length) + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
-				if(voted.length >= Math.ceil(online * 0.66)) {
+				if((voted.length >= Math.ceil(online * 0.66) && online > 4) || voted.length == online) {
 					this.omegga.broadcast(clr.ylw + '<b>Enough people have voted to skip the map!</>');
 					votetime = 29;
 					voted = [];
@@ -1556,6 +1561,7 @@ class TrenchWarfare {
 			this.omegga.broadcast('<b>' + clr.ylw + name + '</> has voted for ' + clr.dgrn + resultMap + '</>');
 		})
 		.on('cmd:t', async (name, ...args) => {
+			try{
 			let message = args.join(' ');
 			console.log(name + ': ' + message);
 			message = OMEGGA_UTIL.chat.sanitize(message);
@@ -1565,11 +1571,15 @@ class TrenchWarfare {
 			for(var p in players) {
 				const player = players[p];
 				const team = await this.getTeam(1, player);
+				if(team == null) {
+					continue;
+				}
 				if(team.name === ogteam.name) {
 					const tclr = clr[team.name.substr(0,3).toLowerCase()];
 					this.omegga.whisper(player.name, '<i><b>' + tclr + '(TEAM) ' + name + '</>:</></> ' + message + '');
 				}
 			}
+			}catch{console.log(e)}
 		})
 		.on('cmd:lbt', async name => {
 			
@@ -1721,7 +1731,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>Weapons: Light Machine Gun, Pump Shotgun, Grenades.</>');
 					this.omegga.whisper(name, '<b>Abilities: Can heal faster when crouching.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Medic</>');
-					this.omegga.whisper(name, '<b>Weapons: Bullpup SMG, Pump Shotgun, Health Potions.</>');
+					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potions.</>');
 					this.omegga.whisper(name, '<b>Abilities: When crouching the medic heals other teammates around them. Crouching near teammate gravestones revives the teammate.</>');
 					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll.</>');
 					break;
@@ -1786,6 +1796,9 @@ class TrenchWarfare {
 				return;
 			}
 			const player = args[0].player;
+			if(player.name in lineBuild) {
+				delete lineBuild[player.name];
+			}
 			const team = await this.getTeam(1, player.name);
 			if(team == null) {
 				return;
