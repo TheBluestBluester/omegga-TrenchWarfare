@@ -325,6 +325,11 @@ class TrenchWarfare {
 						relative[2] *= -1;
 					}
 					
+					let mult = 1;
+					if(builder) {
+						mult = 0.5;
+					}
+					
 					let nextBlockPos = this.copyArray(startPos);
 					if(relative[0] === 0 || relative[1] === 0) {
 						
@@ -336,6 +341,9 @@ class TrenchWarfare {
 								const colliding = await this.checkColliding(brick.position, [10,10,10]);
 								if(colliding) {
 									continue;
+								}
+								if(brickList.length * mult >= inv.count) {
+									break;
 								}
 								
 								brickList.push(this.copyBrick(brick));
@@ -362,6 +370,9 @@ class TrenchWarfare {
 								if(colliding) {
 									continue;
 								}
+								if(brickList.length * mult >= inv.count) {
+									break;
+								}
 								
 								brickList.push(this.copyBrick(brick));
 								tl.push({p: brick.position, s: brick.size, c: team.color});
@@ -384,15 +395,7 @@ class TrenchWarfare {
 						}
 						
 					}
-					let mult = 1;
-					if(builder) {
-						mult = 0.5;
-					}
 					
-					if(brickList.length * mult > inv.count) {
-						this.omegga.middlePrint(player.name, '<b>Not enough trench! ' + inv.count + '/' + (brickList.length * mult) + '</>');
-						return;
-					}
 					if(brickList.length === 0) {
 						this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
 						return;
@@ -436,6 +439,7 @@ class TrenchWarfare {
 				return;
 			}
 			if(gracetime > 0 && !data.message.includes(team.name)) {
+				this.omegga.middlePrint(player.name, '<b>You can\'t dig during the grace period!');
 				return;
 			}
 			if(data.message.includes('undiggable')) {
@@ -806,7 +810,7 @@ class TrenchWarfare {
 			
 			let zone = zones[index];
 			let prevValue = zone.bias;
-			zone.bias = Math.min(20, Math.max(zone.bias + direction * 2, -20));
+			zone.bias = Math.min(20, Math.max(zone.bias + direction, -20));
 			if(zone.capturedBy == 'None') {
 				
 				switch(zone.bias) {
@@ -1520,8 +1524,12 @@ class TrenchWarfare {
 			const online = this.omegga.players.length;
 			if(votetime > 30) {
 				voted.push(name);
-				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (Math.ceil(online * 0.66) - voted.length) + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
-				if((voted.length >= Math.ceil(online * 0.66) && online > 4) || voted.length == online) {
+				let needed = Math.ciel(online * 0.66);
+				if(online < 5) {
+					needed = online;
+				}
+				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + needed + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
+				if(voted.length == needed) {
 					this.omegga.broadcast(clr.ylw + '<b>Enough people have voted to skip the map!</>');
 					votetime = 29;
 					voted = [];
@@ -1813,12 +1821,11 @@ class TrenchWarfare {
 			deadPlayers[player.name] = {pos: playerPos, team: team.name, heal: 0};
 			
 			const tclr = clr[team.name.substr(0,3).toLowerCase()];
-			this.placeGravestone(playerPos, team.color);
 			
 			if(player.name == redcarrier) {
-				let pos = reddef;
+				let pos = this.copyArray(reddef);
 				if(plyr != null) {
-					pos = playerPos;
+					pos = this.copyArray(playerPos);
 				}
 				pos[2] += 20;
 				if(await this.checkColliding(pos, [10,10,20])) {
@@ -1832,17 +1839,18 @@ class TrenchWarfare {
 					this.omegga.broadcast('<b>The ' + clr.red + 'red flag</> is unreachable so it got respawned.</>');
 					redflagpos = reddef;
 					redupd = true;
-					return;
 				}
-				redtimout = 40;
-				this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.red + 'red flag!</>');
-				redflagpos = pos;
-				redupd = true;
+				else {
+					redtimout = 40;
+					this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.red + 'red flag!</>');
+					redflagpos = pos;
+					redupd = true;
+				}
 			}
 			if(player.name == blucarrier) {
-				let pos = bludef;
+				let pos = this.copyArray(bludef);
 				if(plyr != null) {
-					pos = playerPos;
+					pos = this.copyArray(playerPos);
 				}
 				pos[2] += 20;
 				if(await this.checkColliding(pos, [10,10,20])) {
@@ -1859,11 +1867,14 @@ class TrenchWarfare {
 					return;
 					//pos = prefallbpos;
 				}
-				blutimout = 40;
-				this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.blu + 'blue flag!</>');
-				bluflagpos = pos;
-				bluupd = true;
+				else {
+					blutimout = 40;
+					this.omegga.broadcast('<b>' + tclr + player.name + '</> has lost the ' + clr.blu + 'blue flag!</>');
+					bluflagpos = pos;
+					bluupd = true;
+				}
 			}
+			this.placeGravestone(playerPos, team.color);
 		}
 		if(event === 'spawn') {
 			const player = args[0].player;
