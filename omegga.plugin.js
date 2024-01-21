@@ -439,7 +439,7 @@ class TrenchWarfare {
 				return;
 			}
 			if(gracetime > 0 && !data.message.includes(team.name)) {
-				this.omegga.middlePrint(player.name, '<b>You can\'t dig during the grace period!');
+				this.omegga.middlePrint(player.name, '<b>You can\'t dig during the grace period!</>');
 				return;
 			}
 			if(data.message.includes('undiggable')) {
