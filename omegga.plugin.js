@@ -35,6 +35,7 @@ let tick = 0;
 let weapons;
 let deadPlayers = {};
 let revivePos = {};
+let playerData = {};
 
 let mapchoice = [];
 
@@ -169,7 +170,7 @@ class TrenchWarfare {
 			if(player == null) {
 				return;
 			}
-			const team = await this.getTeam(1, player);
+			const team = playerData[player.name].team;
 			if(team == null) {
 				return;
 			}
@@ -250,7 +251,7 @@ class TrenchWarfare {
 				inv = inv[0];
 			}
 			const index = blockinv.findIndex(function(v) { return v.player == inv.player });
-			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), this.isCrouching(player), this.GetRotation(player.controller)]);
+			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), this.isCrouching(playerData[player.name].pawn), this.GetRotation(player.controller)]);
 			const size = data.brick_size;
 			const pos = data.position;
 			const blocksize = 10;
@@ -531,10 +532,10 @@ class TrenchWarfare {
 		
 	}
 	
-	async isCrouching(player) {
-		// Turns out omegga's isCrouched() doesn't actually check if the log matches the player's pawn. Which causes the plugin to think that the player is not crouching.
+	async isCrouching(pawn) {
+		// We already store the pawn in playerData so we can use the variable to save on logs.
 		try{
-		const pawn = await this.omegga.getPlayer(player.id).getPawn();
+		//const pawn = await this.omegga.getPlayer(player.id).getPawn();
 		const reg = new RegExp(`.+?BP_FigureV2_C .+?PersistentLevel\.${pawn}\.bIsCrouched = (?<crouched>True|False)$`);
 		const [
 		{
@@ -619,7 +620,7 @@ class TrenchWarfare {
 		const players = this.omegga.players;
 		for(var p in players) {
 			const player = players[p];
-			const team = await this.getTeam(1, player);
+			const team = playerData[player.name].team;
 			if(team == null) {
 				continue;
 			}
@@ -655,15 +656,15 @@ class TrenchWarfare {
 				continue;
 			}
 			if(pclass.class == 'machinegunner') {
-				if(await this.isCrouching(player)) {
+				if(await this.isCrouching(playerData[player.name].pawn)) {
 					player.heal(5);
 				}
 			}
 			if(pclass.class == 'medic') {
-				if(await this.isCrouching(player)) {
+				if(await this.isCrouching(playerData[player.name].pawn)) {
 					
 					const ownPos = await player.getPosition();
-					const ownTeam = await this.getTeam(1, player);
+					const ownTeam = playerData[player.name].team;
 					
 					let isReviving = false;
 					
@@ -671,7 +672,7 @@ class TrenchWarfare {
 					for(let dp in deadPlayerList) {
 						
 						const deadPlayer = deadPlayerList[dp];
-						if(deadPlayer[1].heal >= 5) {
+						if(deadPlayer[1].heal >= 3) {
 							continue;
 						}
 						
@@ -689,7 +690,7 @@ class TrenchWarfare {
 						isReviving = true;
 						deadPlayers[deadPlayer[0]].heal += 0.5;
 						this.omegga.middlePrint(player.name, clr.dgrn + ('||').repeat(Math.min(deadPlayer[1].heal * 2, 10)) + '</>' + ('||').repeat(10 - Math.min(deadPlayer[1].heal * 2, 10)));
-						if(deadPlayer[1].heal == 5) {
+						if(deadPlayer[1].heal == 3) {
 							revivePos[deadPlayer[0]] = deadPlayer[1].pos;
 							this.omegga.whisper(deadPlayer[0], clr.dgrn + '<b>You have been revived! You will respawn in the position that you have died.</>');
 						}
@@ -883,7 +884,7 @@ class TrenchWarfare {
 					continue;
 				}
 				//console.log(zone);
-				const team = await this.getTeam(1, player.player);
+				const team = playerData[player.player.name].team;
 				//console.log(team);
 				if(team == null) {
 					continue;
@@ -1241,7 +1242,7 @@ class TrenchWarfare {
 		const players = this.omegga.players;
 		for(let p in players) {
 			const player = players[p];
-			const team = await this.getTeam(1, player);
+			const team = playerData[player.name].team;
 			if(team == null) {
 				continue;
 			}
@@ -1435,8 +1436,8 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.giveItem(weapons['sniper']);
-				plyr.giveItem(weapons['high power pistol']);
+				plyr.giveItem(weapons['lever action rifle']);
+				plyr.giveItem(weapons['pistol']);
 				break;
 			case 'trenchie':
 				plyr.giveItem(weapons['tactical shotgun']);
@@ -1469,8 +1470,8 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.takeItem(weapons['sniper']);
-				plyr.takeItem(weapons['high power pistol']);
+				plyr.takeItem(weapons['lever action rifle']);
+				plyr.takeItem(weapons['pistol']);
 				break;
 			case 'trenchie':
 				plyr.takeItem(weapons['tactical shotgun']);
@@ -1505,6 +1506,7 @@ class TrenchWarfare {
 		}
 		
 		this.omegga.on('cmd:skip', async name => {
+			//try{
 			if(roundended) {
 				this.omegga.whisper(name, clr.red + "<b>Cannot skip while the round is ended.</>");
 				return;
@@ -1524,11 +1526,11 @@ class TrenchWarfare {
 			const online = this.omegga.players.length;
 			if(votetime > 30) {
 				voted.push(name);
-				let needed = Math.ciel(online * 0.66);
+				let needed = Math.ceil(online * 0.66);
 				if(online < 5) {
 					needed = online;
 				}
-				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + needed + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
+				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (needed - voted.length) + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
 				if(voted.length == needed) {
 					this.omegga.broadcast(clr.ylw + '<b>Enough people have voted to skip the map!</>');
 					votetime = 29;
@@ -1536,6 +1538,7 @@ class TrenchWarfare {
 					this.announceEnd();
 				}
 			}
+			//}catch(e){console.log(e)}
 		})
 		.on('cmd:vote', async (name, ...args) => {
 			if(!roundended) {
@@ -1575,10 +1578,10 @@ class TrenchWarfare {
 			message = OMEGGA_UTIL.chat.sanitize(message);
 			const players = this.omegga.players;
 			const ogplayer = await this.omegga.getPlayer(name);
-			const ogteam = await this.getTeam(1, ogplayer);
+			const ogteam = playerData[ogplayer.name].team;
 			for(var p in players) {
 				const player = players[p];
-				const team = await this.getTeam(1, player);
+				const team = playerData[player.name].team;
 				if(team == null) {
 					continue;
 				}
@@ -1664,8 +1667,8 @@ class TrenchWarfare {
 				this.omegga.whisper(name, clr.red + '<b>That player either isn\'t online or you have miss-spelled.</>');
 				return;
 			}
-			const ownteam = await this.getTeam(1, name);
-			const recteam = await this.getTeam(1, reciever);
+			const ownteam = playerData[name].team;
+			const recteam = playerData[reciever].team;
 			if(ownteam.name != recteam.name) {
 				this.omegga.whisper(name, clr.red + '<b>You cannot give trench to the enemy team.</>');
 			}
@@ -1731,7 +1734,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
 					this.omegga.whisper(name, '<b>Weapons: Classic assault rifle, Submachine gun, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
-					this.omegga.whisper(name, '<b>Weapons: Sniper rifle, High-Power Pistol, Grenades.</>');
+					this.omegga.whisper(name, '<b>Weapons: Lever-action rifle, Pistol, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
 					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potion, Impact Grenade.</>');
 					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
@@ -1746,8 +1749,10 @@ class TrenchWarfare {
 				default:
 					this.omegga.whisper(name, '<b>Welcome to trench warfare!</>');
 					this.omegga.whisper(name, '<b>As the server name suggets this is all about trench! To remove trench simply click on it. To place trench click on trench while crouching.</>');
-					this.omegga.whisper(name, '<b>As a CTF you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
-					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn.</>');
+					this.omegga.whisper(name, '<b>This server has 2 modes: Capture The Flag and Zone Control.</>');
+					this.omegga.whisper(name, '<b>In the CTF mode you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
+					this.omegga.whisper(name, '<b>In the ZC mode you stay inside the zones to capture them. You can only capture the zones if the previous zones have been already captured. That means you wont be able to capture zone 1/3 until you capture zone 2 and so on.</>');
+					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn. More info about classes can be found in /trench classes.</>');
 					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 					break;
 				
@@ -1758,6 +1763,8 @@ class TrenchWarfare {
 		for(var p in players) {
 			const player = players[p];
 			classlist.push({player: player.name, class: 'assault', nextClass: "", timeout: 0});
+			const team = await this.getTeam(1, player.name);
+			playerData[player.name] = {team: team, pawn: false};
 		}
 		await this.initmaps();
 		setTimeout(() => this.loadminig(), 5000);
@@ -1807,7 +1814,7 @@ class TrenchWarfare {
 			if(player.name in lineBuild) {
 				delete lineBuild[player.name];
 			}
-			const team = await this.getTeam(1, player.name);
+			const team = playerData[player.name].team;
 			if(team == null) {
 				return;
 			}
@@ -1877,13 +1884,17 @@ class TrenchWarfare {
 			this.placeGravestone(playerPos, team.color);
 		}
 		if(event === 'spawn') {
-			const player = args[0].player;
+			const player = await this.omegga.getPlayer(args[0].player.name);
 			const index = classlist.findIndex(cl => cl.player == player.name);
+			
+			const [team, pawn] = await Promise.all([this.getTeam(1, player), player.getPawn()]);
+			playerData[player.name] = {team: team, pawn: pawn};
+			
 			//classlist[index].upd = true;
 			if(classlist[index].nextClass) {
 				classlist[index].class = classlist[index].nextClass;
 				classlist[index].nextClass = "";
-				this.omegga.whisper(player.name, clr.ylw + '<b>Note! To get more info on classes type /trench classes.</>');
+				this.omegga.whisper(player.name, clr.ylw + '<b>Note: To get more info on classes type /trench classes.</>');
 			}
 			
 			if(player.name in deadPlayers) {
