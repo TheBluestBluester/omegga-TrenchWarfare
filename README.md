@@ -24,7 +24,7 @@ Blue team's flag
 #### destructable
 Destructable bricks which are effected by explosives.
 #### zone
-The zone. Acts like an undiggable trench brick.
+The zone. Acts like an undiggable trench brick. You must include the zone's order in the Messages textbox. 1, 2, 3, n.. is from red to blue.
 
 #### Notes:
 Trench cannot be placed on non-trench bricks.
