@@ -49,6 +49,8 @@ let blupoints = 0;
 
 let lineBuild = {};
 
+let teamColors = [0,0];
+
 // CTF
 let gracetime = 60;
 
@@ -234,7 +236,7 @@ class TrenchWarfare {
 					break;
 			}
 			
-			if(!data.message.includes('trench')) {
+			if(!data.message.includes('trench') && !data.message == 'zone') {
 				return;
 			}
 			if(timeout.includes(player.id)) {
@@ -443,7 +445,7 @@ class TrenchWarfare {
 				this.omegga.middlePrint(player.name, '<b>You can\'t dig during the grace period!</>');
 				return;
 			}
-			if(data.message.includes('undiggable')) {
+			if(data.message.includes('undiggable') || data.message == 'zone') {
 				this.omegga.middlePrint(player.name, 'You can only place trench here.');
 				return;
 			}
@@ -689,7 +691,7 @@ class TrenchWarfare {
 						//console.log(deadPlayer, ownPos, ownTeam);
 						isReviving = true;
 						deadPlayers[deadPlayer[0]].heal += 0.5;
-						this.omegga.middlePrint(player.name, clr.dgrn + ('||').repeat(Math.min(deadPlayer[1].heal * 2, 10)) + '</>' + ('||').repeat(10 - Math.min(deadPlayer[1].heal * 2, 10)));
+						this.omegga.middlePrint(player.name, clr.dgrn + ('||').repeat(Math.min(deadPlayer[1].heal * 2, 6)) + '</>' + ('||').repeat(6 - Math.min(deadPlayer[1].heal * 2, 6)));
 						if(deadPlayer[1].heal == 3) {
 							revivePos[deadPlayer[0]] = deadPlayer[1].pos;
 							this.omegga.whisper(deadPlayer[0], clr.dgrn + '<b>You have been revived! You will respawn in the position that you have died.</>');
@@ -750,6 +752,29 @@ class TrenchWarfare {
 			this.omegga.broadcast('<b>Not enough people have voted to switch maps!</>');
 		}
 		
+		if(gracetime > -1 && !roundended) {
+			gracetime -= 0.5;
+			switch(gracetime) {
+				case 59:
+					this.omegga.broadcast('<b>60 seconds of grace period remain.</>');
+					break;
+				case 30:
+					this.omegga.broadcast('<b>30 seconds of grace period remain.</>');
+					break;
+				case 15:
+					this.omegga.broadcast('<b>15 seconds of grace period remain.</>');
+					break;
+				case 5:
+					this.omegga.broadcast('<b>5 seconds of grace period remain.</>');
+					break;
+				case 0:
+					this.teleportPlayers();
+					this.omegga.broadcast('<b>FIGHT! Grace period has ended.</>');
+					break;
+			}
+			return;
+		}
+		
 		switch(mode) {
 			
 			case 'CTF':
@@ -803,6 +828,20 @@ class TrenchWarfare {
 		if(redpoints == zones.length || blupoints == zones.length) {
 			this.announceEnd();
 		}
+	}
+	
+	async replaceBrick(zone, color) {
+		//try{
+		let brick = this.copyBrick(brsbrick.bricks[0]);
+		brick.position = zone.pos;
+		brick.size = zone.size;
+		brick.color = color;
+		brick.components.BCD_Interact.Message = zone.order.toString();
+		brick.components.BCD_Interact.ConsoleTag = "zone";
+		
+		await this.omegga.clearRegion({center: zone.pos, extent: zone.size});
+		this.omegga.loadSaveData({...brsbrick, bricks: [brick]}, {quiet: true});
+		//}catch(e){console.log(e)}
 	}
 	
 	async zctick() {
@@ -873,6 +912,8 @@ class TrenchWarfare {
 			let captureTeam = "";
 			let captureRate = 0;
 			let playersInZone = [];
+			
+			//let teamColors = [0,0];
 			for(let p in playerPosList) {
 				
 				const player = playerPosList[p];
@@ -888,6 +929,12 @@ class TrenchWarfare {
 				//console.log(team);
 				if(team == null) {
 					continue;
+				}
+				if(team.name == "Red team") {
+					teamColors[0] = team.color;
+				}
+				else {
+					teamColors[1] = team.color;
 				}
 				
 				if(captureTeam == '') {
@@ -952,13 +999,16 @@ class TrenchWarfare {
 				case 'red':
 					this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + 'zone ' + zone.order + '!<>');
 					this.recalculatePoints();
+					this.replaceBrick(zone, teamColors[0]);
 					break;
 				case 'blu':
 					this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
 					this.recalculatePoints();
+					this.replaceBrick(zone, teamColors[1]);
 					break;
 				case 'uncap':
 					this.omegga.broadcast('<b>' + clr.ylw + 'zone ' + zone.order + '</> has been uncaptured.<>');
+					this.replaceBrick(zone, zone.defCol);
 					break;
 			}
 			
@@ -971,28 +1021,7 @@ class TrenchWarfare {
 	
 	async ctftick() {
 		try{
-		if(gracetime > -1 && !roundended) {
-			gracetime -= 0.5;
-			switch(gracetime) {
-				case 59:
-					this.omegga.broadcast('<b>60 seconds of grace period remain.</>');
-					break;
-				case 30:
-					this.omegga.broadcast('<b>30 seconds of grace period remain.</>');
-					break;
-				case 15:
-					this.omegga.broadcast('<b>15 seconds of grace period remain.</>');
-					break;
-				case 5:
-					this.omegga.broadcast('<b>5 seconds of grace period remain.</>');
-					break;
-				case 0:
-					this.teleportPlayers();
-					this.omegga.broadcast('<b>FIGHT! Grace period has ended.</>');
-					break;
-			}
-			return;
-		}
+		
 		if(redtimout > -1) {
 			redtimout -= 0.5;
 		}
@@ -1340,6 +1369,8 @@ class TrenchWarfare {
 		}
 		const assets = map.brick_assets;
 		const colors = map.colors;
+
+		const zoneInd = [];
 		for(var b in map.bricks) {
 			let brick = map.bricks[b];
 			if(assets[brick.asset_name_index] === "B_SpawnPoint") {
@@ -1373,7 +1404,9 @@ class TrenchWarfare {
 							break;
 						case 'zone':
 							const order = Number(brick.components.BCD_Interact.Message);
-							zones.push({pos: pos, size: brick.size, bias: 0, capturedBy: 'None', order: order});
+							zones.push({pos: pos, size: brick.size, bias: 0, capturedBy: 'None', order: order, defCol: brick.color});
+							zoneInd.push({brInd: b, zInd: zones.length - 1});
+							//tl.push({p: pos, s: brick.size, c: brick.color});
 							break;
 						case 'destructable':
 							tl.push({p: pos, s: brick.size, c: brick.color, dontSubdivide: true});
@@ -1381,6 +1414,20 @@ class TrenchWarfare {
 					}
 				}
 			}
+		}
+		const centerZone = zones.length / 2 + 0.5;
+		for(let z in zoneInd) {
+			
+			let brick = map.bricks[zoneInd[z].brInd];
+			let zone = zones[zoneInd[z].zInd];
+			
+			if(zone.order < centerZone) {
+				brick.color = teamColors[0];
+			}
+			else if(zone.order > centerZone) {
+				brick.color = teamColors[1];
+			}
+			
 		}
 		
 		const mapName = mapid.split('.')[0];
@@ -1390,7 +1437,7 @@ class TrenchWarfare {
 			
 			case 'ZC':
 				mode = 'ZC';
-				gracetime = -1;
+				//gracetime = -1;
 				middleZone = zones.length / 2 + 0.5;
 				for(let z in zones) {
 					let zone = zones[z];
@@ -1638,6 +1685,7 @@ class TrenchWarfare {
 			}
 		})
 		.on('join', async player => {
+			try{
 			const f = classlist.filter(cl => cl.player == player.name);
 			let clas = 0;
 			if(f.length === 0) {
@@ -1648,6 +1696,13 @@ class TrenchWarfare {
 				clas = f[0];
 			}
 			playerc = this.omegga.players.length;
+			
+			//setTimeout(() => {
+				//const player = await this.omegga.getPlayer(player.name);
+				//const [team, pawn] = await Promise.all([this.getTeam(1, player), player.getPawn()]);
+				//playerData[player.name] = {team: team, pawn: pawn};
+			//}, 500)
+			}catch(e){console.log(e);}
 		})
 		.on('cmd:give', async (name, ...args) => {
 			let amount = Number(args[0]);
@@ -1661,7 +1716,7 @@ class TrenchWarfare {
 			}
 			amount = Math.round(amount);
 			args.splice(0,1);
-			const reciever = await this.omegga.getPlayer(args.join(' '));
+			const reciever = await this.omegga.findPlayerByName(args.join(' '));
 			const owninv = await this.omegga.getPlayer(name);
 			if(reciever == null) {
 				this.omegga.whisper(name, clr.red + '<b>That player either isn\'t online or you have miss-spelled.</>');
@@ -1766,6 +1821,14 @@ class TrenchWarfare {
 			const team = await this.getTeam(1, player.name);
 			playerData[player.name] = {team: team, pawn: false};
 		}
+		
+		const minigame = (await this.omegga.getMinigames())[1];
+		if(minigame != null) {
+			
+			const teams = minigame.teams;
+			teamColors = [teams[0].color, teams[1].color];
+		}
+		
 		await this.initmaps();
 		setTimeout(() => this.loadminig(), 5000);
 		this.announceEnd();
@@ -1780,6 +1843,10 @@ class TrenchWarfare {
 			await fs.writeFile(presetpath + '/Minigame/TrenchMinigame.bp', tminig, (err, data) => {});
 			this.omegga.loadMinigame('TrenchMinigame', "1050c1b9-cedc-4d6a-8131-495819b04636");
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
+			// Attempt the second time to get the team colors.
+			const minigames = await this.omegga.getMinigames();
+			const teams = minigames[1].teams;
+			teamColors = [teams[0].color, teams[1].color];
 		}
 	}
 	
@@ -1812,7 +1879,7 @@ class TrenchWarfare {
 			}
 			const player = args[0].player;
 			if(player.name in lineBuild) {
-				delete lineBuild[player.name];
+				lineBuild[player.name] = [];
 			}
 			const team = playerData[player.name].team;
 			if(team == null) {
