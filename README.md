@@ -16,7 +16,7 @@ The included minigame uses the default color pallete.
 
 #### trench
 The trench.
-Adding undiggable will make the trench undiggable. Undiggable trench will also not be effected by explosives.
+Adding undiggable will make the trench undiggable. Undiggable trench will also not be affected by explosives.
 #### redflag
 Red team's flag
 #### blueflag
