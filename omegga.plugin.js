@@ -179,7 +179,7 @@ class TrenchWarfare {
 			const tclr = clr[team.name.substr(0,3).toLowerCase()];
 			switch(data.message) {
 				case 'red':
-					if(team.name == 'BlueTeam' || redflagpos != reddef) {
+					if(team.name == 'BlueTeam') {
 						redcarrier = player.name;
 						await this.omegga.clearBricks('00000000-0000-0000-0000-000000000333', {quiet: true});
 						redtimout = 0;
@@ -187,7 +187,7 @@ class TrenchWarfare {
 					}
 					break;
 				case 'blu':
-					if(team.name == 'RedTeam' || bluflagpos != bludef) {
+					if(team.name == 'RedTeam') {
 						blucarrier = player.name;
 						await this.omegga.clearBricks('00000000-0000-0000-0000-000000000111', {quiet: true});
 						blutimout = 0;
@@ -236,7 +236,7 @@ class TrenchWarfare {
 					break;
 			}
 			
-			if(!data.message.includes('trench') && !data.message == 'zone') {
+			if(!(data.message.includes('trench') || !data.message == 'zone')) {
 				return;
 			}
 			if(timeout.includes(player.id)) {
@@ -611,7 +611,7 @@ class TrenchWarfare {
 		const filteredfolder = mapfolder.filter(map => map.split('.')[1] == 'brs');
 		if(filteredfolder.length > 0 && filteredfolder) {
 			maps = filteredfolder;
-			mapid = maps[0];
+			mapid = (maps[0]).split('.')[0];
 		}
 		else {
 			console.log('Warning! There is no maps in the Map folder.');
@@ -1349,7 +1349,7 @@ class TrenchWarfare {
 					highest = val;
 				}
 			}
-			mapid = mapchoice[ind] + '.brs';
+			mapid = mapchoice[ind];
 		}
 		if(maps.length == 0) {
 			return;
@@ -1359,10 +1359,19 @@ class TrenchWarfare {
 		if(mapid >= maps.length) {
 			mapid = 0;
 		}
-		const mapfile = fs.readFileSync(__dirname + "/Map/"+mapid);
+		
+		let envData = tenv;
+		if(fs.existsSync(__dirname + '/Map/' + mapid + '.bp')) {
+			envData = fs.readFileSync(__dirname + "/Map/" + mapid + '.bp', 'utf8');
+		}
+		const parsedEnv = JSON.parse(envData);
+		this.omegga.loadEnvironmentData(parsedEnv);
+		lowest = parsedEnv.data.groups.Water.waterHeight;
+		
+		const mapfile = fs.readFileSync(__dirname + "/Map/" + mapid + '.brs');
 		let map = brs.read(mapfile);
 		let ownerl = [];
-		lowest = 99999;
+		//lowest = 99999;
 		for(var w in map.brick_owners) {
 			const brco = map.brick_owners[w];
 			ownerl.push(brco.name);
@@ -1389,9 +1398,6 @@ class TrenchWarfare {
 					switch(brick.components.BCD_Interact.ConsoleTag) {
 						case 'trench':
 							trenchcolor = brick.color;
-							if(pos[2] - brick.size[2] < lowest) {
-								lowest = pos[2] - brick.size[2];
-							}
 							tl.push({p: pos, s: brick.size, c: brick.color});
 							break;
 						case 'redflag':
