@@ -17,6 +17,8 @@ const gravestoneBRS = brs.read(brsfile);
 const tminig = fs.readFileSync(__dirname + "/Minig and Env/TrenchMinigame.bp", 'utf8');
 const tenv = fs.readFileSync(__dirname + "/Minig and Env/Trench wars env preset.bp", 'utf8');
 
+let autoStart = true;
+
 let activeGrenades = [];
 let checkForGrenades = true;
 
@@ -112,6 +114,9 @@ class TrenchWarfare {
 		this.omegga = omegga;
 		this.config = config;
 		this.store = store
+		
+		autoStart = this.config.autoStart;
+		
 	}
 	
 	async Raycast(bpos, bsize, ppos, prot, steps, pheight) {
@@ -1359,6 +1364,120 @@ class TrenchWarfare {
 		}catch(e){return false;}
 	}
 	
+	// Map edit tools.
+	
+	async forceLoad(name, args) {
+		
+		const player = await this.omegga.getPlayer(name);
+		if(!(await player.isHost())) {
+			return;
+		}
+		
+		if(!fs.existsSync(__dirname + '/Map/' + args.join(' ') + '.brs')) {
+			this.omegga.whisper(name, 'Invalid file name.');
+			return;
+		}
+		
+		voted = [{p: name, v: 1}];
+		mapchoice[0] = args.join(' ');
+		
+		this.omegga.broadcast(name + ' has forceloaded ' + args.join(' '));
+		
+	}
+	
+	async toggle(name) {
+		
+		const player = await this.omegga.getPlayer(name);
+		if(!(await player.isHost())) {
+			return;
+		}
+		
+		if(roundended) {
+			this.announceEnd();
+			this.loadminig();
+			this.omegga.whisper(name, 'Game started.');
+		}
+		else {
+			roundended = true;
+			this.omegga.whisper(name, 'Game ended.');
+		}
+		
+	}
+	
+	async saveMap(name, args) {
+		
+		const player = await this.omegga.getPlayer(name);
+		if(!(await player.isHost())) {
+			return;
+		}
+		
+		if(args.length == 0) {
+			this.omegga.whisper(name, 'You need to include the map name.');
+			return;
+		}
+		const mapName = args.join(' ');
+		
+		const brsData = await this.omegga.getSaveData();
+		const buffer = await brs.write(brsData);
+		
+		const envData = await this.omegga.getEnvironmentData();
+		const envJSON = JSON.stringify(envData);
+		
+		fs.writeFileSync(__dirname + '/Map/' + mapName + '.brs', buffer, (err, data) => {});
+		fs.writeFileSync(__dirname + '/Map/' + mapName + '.bp', envJSON, (err, data) => {});
+		
+		this.omegga.whisper(name, 'Succesfully saved ' + mapName);
+		
+	}
+	
+	async trenchify(name) {
+		try{
+		const player = await this.omegga.getPlayer(name);
+		if(!(await player.isHost())) {
+			return;
+		}
+		const paint = await player.getPaint();
+		//console.log(paint);
+		let brs = await this.omegga.getSaveData();
+		brs.components.BCD_Interact = brsbrick.components.BCD_Interact;
+		
+		let changes = 0;
+		for(let b in brs.bricks) {
+			
+			let brick = brs.bricks[b];
+			if(brick.size[0] + brick.size[1] + brick.size[2] == brick.size[0] * 3) {
+				
+				const color = brs.colors[brick.color];
+				//console.log(color);
+				if(color.join('') != ([...paint.color, 255]).join('')) {
+					continue;
+				}
+				
+				brick.components.BCD_Interact = brsbrick.bricks[0].components.BCD_Interact;
+				changes++;
+				
+			}
+			
+		}
+		
+		if(changes > 0) {
+			
+			this.omegga.clearAllBricks({quiet: true});
+			this.omegga.loadSaveData(brs, {quiet: true});
+			
+			this.omegga.whisper(name, changes + ' bricks found.');
+			
+		}
+		else {
+			
+			this.omegga.whisper(name, 'No bricks of the selected color found.');
+			
+		}
+		}catch(e){console.log(e)}
+	}
+	
+	// Map edit tools.
+	
 	async announceEnd() {
 		//try{
 		console.log("Round end");
@@ -1687,6 +1806,11 @@ class TrenchWarfare {
 				this.omegga.whisper(name, clr.red + '<b>You have already voted to skip.</>')
 				return;
 			}
+			const online = this.omegga.players.length;
+			if(online == null || online === 0) {
+				this.omegga.whisper(name, clr.red + "<b>Something has went wrong! Maybe try again?</>");
+				return;
+			}
 			if(votetime === 0) {
 				this.omegga.broadcast(clr.ylw + '<b>' + name + ' wants to skip this map!</>');
 				votetime = 120;
@@ -1695,7 +1819,6 @@ class TrenchWarfare {
 				this.omegga.whisper(name, clr.red + '<b>You need to wait '  + Math.floor(votetime / 2) + ' seconds before starting a vote again.</>');
 				return;
 			}
-			const online = this.omegga.players.length;
 			if(votetime > 30) {
 				voted.push(name);
 				let needed = Math.ceil(online * 0.66);
@@ -1711,6 +1834,18 @@ class TrenchWarfare {
 				}
 			}
 			//}catch(e){console.log(e)}
+		})
+		.on('cmd:trenchify', async name => {
+			this.trenchify(name);
+		})
+		.on('cmd:savemap', async (name, ...args) => {
+			this.saveMap(name, args);
+		})
+		.on('cmd:toggle', async name => {
+			this.toggle(name);
+		})
+		.on('cmd:forceload', async (name, ...args) => {
+			this.forceLoad(name, args);
 		})
 		.on('cmd:vote', async (name, ...args) => {
 			if(!roundended) {
@@ -1955,12 +2090,15 @@ class TrenchWarfare {
 		}
 		
 		await this.initmaps();
-		setTimeout(() => this.loadminig(), 5000);
-		this.announceEnd();
+		if(autoStart) {
+			setTimeout(() => this.loadminig(), 5000);
+			this.announceEnd();
+		}
 		flaginterval = setInterval(() => this.generalTick(), 500);
-		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote', 'lbt'] };
+		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote', 'lbt', 'trenchify', 'savemap', 'toggle', 'forceload'] };
 	}
 	async loadminig() {
+		try{
 		const minigs = await this.omegga.getMinigames();
 		if(minigs.find(m => m.name === "Trench wars minigane") == null) {
 			const presetpath = this.omegga.presetPath;
@@ -1973,6 +2111,7 @@ class TrenchWarfare {
 			const teams = minigames[1].teams;
 			teamColors = [teams[0].color, teams[1].color];
 		}
+		}catch(e){console.log(e)}
 	}
 	
 	async placeGravestone(position, color) {
@@ -2024,7 +2163,10 @@ class TrenchWarfare {
 			if(player.name == redcarrier) {
 				let pos = this.copyArray(reddef);
 				if(plyr != null) {
-					pos = this.copyArray(playerPos);
+					const roundX = Math.round(playerPos[0] / 10) * 10;
+					const roundY = Math.round(playerPos[1] / 10) * 10;
+					const roundZ = Math.round(playerPos[2]);
+					pos = [roundX, roundY, roundZ];
 				}
 				pos[2] += 20;
 				if(await this.checkColliding(pos, [10,10,20])) {
@@ -2049,7 +2191,10 @@ class TrenchWarfare {
 			if(player.name == blucarrier) {
 				let pos = this.copyArray(bludef);
 				if(plyr != null) {
-					pos = this.copyArray(playerPos);
+					const roundX = Math.round(playerPos[0] / 10) * 10;
+					const roundY = Math.round(playerPos[1] / 10) * 10;
+					const roundZ = Math.round(playerPos[2]);
+					pos = [roundX, roundY, roundZ];
 				}
 				pos[2] += 20;
 				if(await this.checkColliding(pos, [10,10,20])) {

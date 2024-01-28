@@ -3,6 +3,11 @@
   "description": "Fight n dig to get 3 flags of your enemy first.",
   "author": "Bluester16",
   "config": {
+    "AutoStart": {
+	"description": "Automatically start the game when the plugin is loaded.",
+	"default": true,
+	"type": "boolean"
+    }
   },
   "commands": [
     {
@@ -10,6 +15,37 @@
       "description": "Gives all the info on trench warfare.",
       "example": "/trench",
       "args": [
+      ]
+    },
+    {
+      "name": "/trenchify",
+      "description": "Converts all bricks of the selected color to trench.",
+      "example": "/trenchify",
+      "args": [
+      ]
+    },
+    {
+      "name": "/savemap",
+      "description": "Saves the map. Also saves the current environment.",
+      "example": "/savemap CTF_Test map",
+      "args": [
+        {
+          "name": "Map name",
+          "description": "Map name. You have to input the mode through it.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "/forceload",
+      "description": "Forceloads a map.",
+      "example": "/forceload CTF_Donut pike",
+      "args": [
+        {
+          "name": "Map name",
+          "description": "Map name. You have to input the mode through it.",
+          "required": true
+        }
       ]
     }
   ]
