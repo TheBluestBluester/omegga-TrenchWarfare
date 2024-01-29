@@ -115,7 +115,7 @@ class TrenchWarfare {
 		this.config = config;
 		this.store = store
 		
-		autoStart = this.config.autoStart;
+		autoStart = this.config.AutoStart;
 		
 	}
 	
@@ -2090,6 +2090,7 @@ class TrenchWarfare {
 		}
 		
 		await this.initmaps();
+		
 		if(autoStart) {
 			setTimeout(() => this.loadminig(), 5000);
 			this.announceEnd();
