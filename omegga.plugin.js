@@ -17,6 +17,9 @@ const gravestoneBRS = brs.read(brsfile);
 const tminig = fs.readFileSync(__dirname + "/Minig and Env/TrenchMinigame.bp", 'utf8');
 const tenv = fs.readFileSync(__dirname + "/Minig and Env/Trench wars env preset.bp", 'utf8');
 
+let timeOuts = 0;
+let pauseTime = 0;
+
 let autoStart = true;
 
 let activeGrenades = [];
@@ -173,6 +176,9 @@ class TrenchWarfare {
 	
 	async interfunc(data) {
 		try {
+			if(pauseTime > 0) {
+				return;
+			}
 			if(roundended) {
 				return;
 			}
@@ -501,7 +507,27 @@ class TrenchWarfare {
 		}
 		catch(e) {
 			console.log(e);
+			this.checkTimeout(e);
 		}
+	}
+	
+	async checkTimeout(error) {
+		
+		if(error == 'timeout') {
+			
+			timeOuts++;
+			
+			if(timeOuts > 3) {
+				
+				this.omegga.broadcast('The plugin is timingout. Some functions will be temporarilly paused.');
+				
+				pauseTime = 5;
+				timeOuts = 0;
+				
+			}
+			
+		}
+		
 	}
 	
 	copyBrick = (brick) => {
@@ -659,6 +685,7 @@ class TrenchWarfare {
 	
 	async generalTick() {
 		try{
+		
 		for(var c in classlist) {
 			const pclass = classlist[c];
 			if(pclass == null) {
@@ -742,6 +769,17 @@ class TrenchWarfare {
 					
 				}
 			}
+		}
+		
+		if(timeOuts > 0) {
+			timeOuts -= 0.2;
+		}
+		
+		if(pauseTime > 0) {
+			
+			pauseTime -= 0.5;
+			return;
+			
 		}
 		
 		if(roundended) {
@@ -828,7 +866,10 @@ class TrenchWarfare {
 			newList.push({id: grenade, pos: pos});
 		}
 		activeGrenades = newList;
-		}catch(e){console.log(e);}
+		}catch(e){
+			console.log(e);
+			this.checkTimeout(e);
+		}
 	}
 	
 	async recalculatePoints() {
@@ -1322,7 +1363,10 @@ class TrenchWarfare {
 			
 		}
 		
-		}catch(e){console.log(e)}
+		}catch(e){
+			console.log(e)
+			this.checkTimeout(e);
+		}
 	}
 	
 	async getGrenades() {
@@ -1785,6 +1829,7 @@ class TrenchWarfare {
 	}
 	
 	async init() {
+		//this.checkTimeout('timeout')
 		weapons = await weplist.list()
 		const deathevents = await this.omegga.getPlugin('deathevents');
 		if(deathevents) {
