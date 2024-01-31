@@ -202,6 +202,14 @@ class TrenchWarfare {
 						redtimout = 0;
 						this.omegga.broadcast('<b>' + tclr + player.name + '</> has taken the ' + clr.red + 'red flag!</>');
 					}
+					else if(redflagpos != reddef) {
+						
+						redflagpos = reddef;
+						redupd = true;
+						redtimout = 0;
+						this.omegga.broadcast('<b>' + tclr + player.name + '</> has returned the ' + clr.red + 'red flag.</>');
+						
+					}
 					break;
 				case 'blu':
 					if(team.name == 'RedTeam') {
@@ -209,6 +217,14 @@ class TrenchWarfare {
 						await this.omegga.clearBricks('00000000-0000-0000-0000-000000000111', {quiet: true});
 						blutimout = 0;
 						this.omegga.broadcast('<b>' + tclr + player.name + '</> has taken the ' + clr.blu + 'blue flag!</>');
+					}
+					else if(bluflagpos != bludef) {
+						
+						bluflagpos = bludef;
+						bluupd = true;
+						blutimout = 0;
+						this.omegga.broadcast('<b>' + tclr + player.name + '</> has returned the ' + clr.blu + 'blue flag.</>');
+						
 					}
 					break;
 				case 'redflag':
@@ -1549,6 +1565,10 @@ class TrenchWarfare {
 		const players = this.omegga.players;
 		for(let p in players) {
 			const player = players[p];
+			if(playerData[player.name] == null) {
+				continue;
+			}
+			
 			const team = playerData[player.name].team;
 			if(team == null) {
 				continue;
@@ -2154,6 +2174,9 @@ class TrenchWarfare {
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
 			// Attempt the second time to get the team colors.
 			const minigames = await this.omegga.getMinigames();
+			if(minigames[1] == null) {
+				return;
+			}
 			const teams = minigames[1].teams;
 			teamColors = [teams[0].color, teams[1].color];
 		}
