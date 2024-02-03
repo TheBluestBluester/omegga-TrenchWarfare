@@ -2003,6 +2003,8 @@ class TrenchWarfare {
 				
 			}
 			
+			delete playerData[player.name];
+			
 			const players = this.omegga.players;
 			playerc = players.length;
 			if(players.length === 1) {
