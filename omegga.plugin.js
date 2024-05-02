@@ -82,11 +82,13 @@ let blucarrier = '';
 
 let redtimout = 0;
 let blutimout = 0;
-// CTF
+
 // ZC
 let zones = [];
 let middleZone = 2;
-// ZC
+let skipZone = {};
+
+// Everything else
 let votes = [];
 let maps = [];
 let roundended = true;
@@ -123,6 +125,7 @@ class TrenchWarfare {
 	}
 	
 	async Raycast(bpos, bsize, ppos, prot, steps, pheight) {
+		try{
 		const B1 = [bpos[0] - bsize[0],bpos[1] - bsize[1],bpos[2] - bsize[2]];
 		const B2 = [bpos[0] + bsize[0],bpos[1] + bsize[1],bpos[2] + bsize[2]];
 		const L1 = [ppos[0],ppos[1],ppos[2] + pheight]
@@ -137,9 +140,11 @@ class TrenchWarfare {
 		const L2 = [L1[0] + dir[0],L1[1] + dir[1],L1[2] + dir[2]];
 		let hit = await raycast.raybox(bpos, bsize[0], L1, L2);
 		return hit;
+		}catch(e){console.log(e)}
 	}
 	
 	async Subdivide(clp, bpos, bsize, cycleAmount){
+		try{
 		// This was alot easier to make than i expected.
 		let finish = false;
 		let cycles = 0;
@@ -172,6 +177,7 @@ class TrenchWarfare {
 			cycles++;
 		}
 		return briklist;
+		}catch(e){console.log(e)}
 	}
 	
 	async interfunc(data) {
@@ -269,7 +275,7 @@ class TrenchWarfare {
 					break;
 			}
 			
-			if(!(data.message.includes('trench') || !data.message == 'zone')) {
+			if(!(data.message.includes('trench') || data.message == 'zone')) {
 				return;
 			}
 			if(timeout.includes(player.id)) {
@@ -285,6 +291,9 @@ class TrenchWarfare {
 			else {
 				inv = inv[0];
 			}
+			
+			const defaultb = this.copyBrick(brsbrick.bricks[0]);
+			
 			const index = blockinv.findIndex(function(v) { return v.player == inv.player });
 			const [ppos,crouch,playerRot] = await Promise.all([player.getPosition(), this.isCrouching(playerData[player.name].pawn), this.GetRotation(player.controller)]);
 			const size = data.brick_size;
@@ -331,10 +340,12 @@ class TrenchWarfare {
 					posh = [posh[0] + n[0] * 10, posh[1] + n[1] * 10, posh[2] + n[2] * 10];
 				}
 				
-				let brick = this.copyBrick(brsbrick.bricks[0]);
+				let brick = this.copyBrick(defaultb);
 				brick.size = [blocksize,blocksize,blocksize];
 				brick.material_index = 0;
 				brick.color = team.color;
+				// this.copyBrick() broke... I have no idea HOW did it break, but it doesn't work anymore. And i didn't even do shit.
+				brick.components.BCD_Interact.Message = "";
 				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
 				
 				if(data.player.name in lineBuild) {
@@ -498,17 +509,18 @@ class TrenchWarfare {
 			const tlind = tl.findIndex(b => b.p.join('') == pos.join(''));
 			
 			const cubelist = await this.Subdivide(hit, pos, size, 10);
-			const defaultb = brsbrick.bricks[0];
 			let brlist = [];
 			for(var i in cubelist) {
 				const br = cubelist[i];
-				let brick = this.copyBrick(defaultb);
-				brick.size = br.s;
-				brick.position = br.p;
-				brick.material_index = 0;
-				brick.color = tl[tlind].c;
-				brick.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
-				brlist.push(brick);
+				let brck = this.copyBrick(defaultb);
+				brck.size = br.s;
+				brck.position = br.p;
+				brck.material_index = 0;
+				brck.color = tl[tlind].c;
+				// this.copyBrick() broke... I have no idea HOW did it break, but it doesn't work anymore. And i didn't even do shit.
+				brck.components.BCD_Interact.Message = "";
+				brck.components.BCD_Interact.ConsoleTag = 'trench ' + team.name;
+				brlist.push(brck);
 				tl.push({p: br.p, s: br.s, c: tl[tlind].c});
 			}
 			tl.splice(tlind, 1);
@@ -628,6 +640,7 @@ class TrenchWarfare {
 	}
 	
 	async checkColliding(pos, scale) {
+		try{
 		const colliding = tl.filter(b => Math.abs(pos[0] - b.p[0]) < scale[0] + b.s[0] &&
 			Math.abs(pos[1] - b.p[1]) < scale[1] + b.s[1] &&
 			Math.abs(pos[2] - b.p[2]) < scale[2] + b.s[2]
@@ -638,6 +651,7 @@ class TrenchWarfare {
 		else {
 			return false;
 		}
+		}catch(e){console.log(e)}
 	}
 	
 	// For some reason controller rotates with player's camera so i am using it to get player's camera rotation.
@@ -821,6 +835,8 @@ class TrenchWarfare {
 			gracetime -= 0.5;
 			switch(gracetime) {
 				case 59:
+					// SOMEHOW votes don't get reset when the map is loaded even though "voted = []" is there. Idk this is the only solution i could think of with a headache at 19:54.
+					voted = [];
 					this.omegga.broadcast('<b>60 seconds of grace period remain.</>');
 					break;
 				case 30:
@@ -914,74 +930,39 @@ class TrenchWarfare {
 	
 	async zctick() {
 		
-		function changeZoneBias(index, direction) {
-			
-			let zone = zones[index];
-			let prevValue = zone.bias;
-			zone.bias = Math.min(20, Math.max(zone.bias + direction, -20));
-			if(zone.capturedBy == 'None') {
-				
-				switch(zone.bias) {
-					
-					case 20:
-						zone.capturedBy = 'BlueTeam';
-						return {b: 20, c: 'blu'};
-					case -20:
-						zone.capturedBy = 'RedTeam';
-						return {b: -20, c: 'red'};
-					default:
-						return {b: zone.bias, c: ''}
-					
-				}
-				
-			}
-			else {
-				
-				if(Math.sign(prevValue) != Math.sign(zone.bias)) {
-					zone.capturedBy = 'None';
-					return {b: zone.bias, c: 'uncap'}
-				}
-				
-				return {b: zone.bias, c: ''}
-				
-			}
-			
-		}
-		
 		try{
 		tick++;
 		
-		if(tick % 4 != 0) {
-			return;
-		}
+		//if(tick % 4 != 0) {
+			//return;
+		//}
 		
 		let playerPosList = [];
-		for(let p in this.omegga.players) {
+		for(let p=tick%4;p<this.omegga.players.length;p+=4) {
 			const player = this.omegga.players[p];
 			if(player.name in deadPlayers) {
 				continue;
 			}
 			playerPosList.push({player: player, pos: await player.getPosition()});
 		}
-		//console.log(playerPosList);
+		
 		const middle = (redpoints + zones.length - 1 - blupoints) / 2;
-		//console.log(middle);
+		
 		let activeZones = [middle];
 		if(middle % 1 != 0) {
 			activeZones = [middle - 0.5, middle + 0.5];
 		}
-		//console.log(middle);
-		//console.log(activeZones);
+		
 		for(let z in zones) {
 			
 			const zone = zones[z];
+			
 			const active = activeZones.includes(Number(z));
-			//console.log(typeof activeZones[0], typeof z);
+			
 			let captureTeam = "";
 			let captureRate = 0;
 			let playersInZone = [];
 			
-			//let teamColors = [0,0];
 			for(let p in playerPosList) {
 				
 				const player = playerPosList[p];
@@ -992,19 +973,20 @@ class TrenchWarfare {
 				if(!(Math.abs(zone.pos[0] - player.pos[0]) < zone.size[0] && Math.abs(zone.pos[1] - player.pos[1]) < zone.size[1])) {
 					continue;
 				}
-				//console.log(zone);
+				
 				const team = playerData[player.player.name].team;
-				//console.log(team);
+				
 				if(team == null) {
 					continue;
 				}
-				if(team.name == "Red team") {
+				/*
+				if(team.name == "RedTeam") {
 					teamColors[0] = team.color;
 				}
 				else {
 					teamColors[1] = team.color;
 				}
-				
+				*/
 				if(captureTeam == '') {
 					captureTeam = team.name;
 					captureRate++;
@@ -1021,15 +1003,16 @@ class TrenchWarfare {
 			}
 			
 			let result = 0;
-			//console.log(captureTeam);
+			
 			switch(captureTeam) {
 				case 'multiple':
 					for(let p in playersInZone) {
 						this.omegga.middlePrint(playersInZone[p], 'There is an enemy team in the zone!');
 					}
+					skipZone[z] = 2;
 					break;
 				case 'RedTeam':
-					if(zone.bias == -20) {
+					if(zone.cap[0] >= 20) {
 						break;
 					}
 					if(!active) {
@@ -1038,15 +1021,23 @@ class TrenchWarfare {
 						}
 						break;
 					}
-					result = changeZoneBias(z, -captureRate);
-					let redBias1 = ('|').repeat(Math.min(20 + result.b, 20)) + clr.red + ('|').repeat(Math.max(-result.b, 0)) + '</>';
-					let bluBias1 = clr.blu + ('|').repeat(Math.max(result.b, 0)) + '</>' + ('|').repeat(Math.min(20 - result.b, 20));
+					
+					zone.cap[0] += captureRate;
+					skipZone[z] = 0;
+					if(zone.cap[0] == 20) {
+						zone.capturedBy = 'RedTeam';
+						this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + 'zone ' + zone.order + '!<>');
+						this.recalculatePoints();
+						this.replaceBrick(zone, teamColors[0]);
+						zone.cap[1] = 0;
+					}
+					let redBias = clr.red + ('|').repeat(zone.cap[0] * 2) + '</>' + ('|').repeat(40 - zone.cap[0] * 2);
 					for(let p in playersInZone) {
-						this.omegga.middlePrint(playersInZone[p], redBias1 + bluBias1);
+						this.omegga.middlePrint(playersInZone[p], redBias);
 					}
 					break;
 				case 'BlueTeam':
-					if(zone.bias == 20) {
+					if(zone.cap[1] >= 20) {
 						break;
 					}
 					if(!active) {
@@ -1055,29 +1046,58 @@ class TrenchWarfare {
 						}
 						break;
 					}
-					result = changeZoneBias(z, captureRate);
-					let redBias2 = ('|').repeat(Math.min(20 + result.b, 20)) + clr.red + ('|').repeat(Math.max(-result.b, 0)) + '</>';
-					let bluBias2 = clr.blu + ('|').repeat(Math.max(result.b, 0)) + '</>' + ('|').repeat(Math.min(20 - result.b, 20));
+					
+					zone.cap[1] += captureRate;
+					skipZone[z] = 1;
+					if(zone.cap[1] == 20) {
+						zone.capturedBy = 'BlueTeam';
+						this.omegga.broadcast('<b>' + clr.blu + 'Red team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
+						this.recalculatePoints();
+						this.replaceBrick(zone, teamColors[1]);
+						zone.cap[0] = 0;
+					}
+					let bluBias = clr.blu + ('|').repeat(zone.cap[1] * 2) + '</>' + ('|').repeat(40 - zone.cap[1] * 2);
 					for(let p in playersInZone) {
-						this.omegga.middlePrint(playersInZone[p], redBias2 + bluBias2);
+						this.omegga.middlePrint(playersInZone[p], bluBias);
 					}
 					break;
-			}
-			switch(result.c) {
-				case 'red':
-					this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + 'zone ' + zone.order + '!<>');
-					this.recalculatePoints();
-					this.replaceBrick(zone, teamColors[0]);
-					break;
-				case 'blu':
-					this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
-					this.recalculatePoints();
-					this.replaceBrick(zone, teamColors[1]);
-					break;
-				case 'uncap':
-					this.omegga.broadcast('<b>' + clr.ylw + 'zone ' + zone.order + '</> has been uncaptured.<>');
-					this.replaceBrick(zone, zone.defCol);
-					break;
+				default:
+					
+					if(tick%4 < 3) {
+						break;
+					}
+					
+					const skip = skipZone[z];
+					if(skip != null) {
+						switch(skip) {
+							
+							case 2:
+								break;
+							case 0:
+								if(zone.cap[1] != 20 && zone.cap[1] > 0) {
+									zone.cap[1]--;
+								}
+								break;
+							case 1:
+								if(zone.cap[0] != 20 && zone.cap[0] > 0) {
+									zone.cap[0]--;
+								}
+								break;
+							
+						}
+						delete skipZone[z];
+					}
+					else {
+						if(zone.cap[0] != 20 && zone.cap[0] > 0) {
+							zone.cap[0]--;
+						}
+						if(zone.cap[1] != 20 && zone.cap[1] > 0) {
+							zone.cap[1]--;
+						}
+					}
+					
+				break;
+				
 			}
 			
 		}
@@ -1240,6 +1260,10 @@ class TrenchWarfare {
 		
 		for(let ab in affectedBricks) {
 			let brick = affectedBricks[ab];
+			const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
+			if(tlind === 0) {
+				continue;
+			}
 			
 			const color = brick.c;
 			
@@ -1247,7 +1271,7 @@ class TrenchWarfare {
 			
 			if(brick.dontSubdivide) {
 				this.omegga.clearRegion({center: brick.p, extent: brick.s});
-				const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
+				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				continue;
 			}
@@ -1267,7 +1291,7 @@ class TrenchWarfare {
 				}
 				else {
 					
-					const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
+					//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 					tl.splice(tlind, 1);
 					
 				}
@@ -1301,7 +1325,7 @@ class TrenchWarfare {
 			else {
 				
 				this.omegga.clearRegion({center: brick.p, extent: brick.s});
-				const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
+				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				
 			}
@@ -1712,7 +1736,7 @@ class TrenchWarfare {
 							break;
 						case 'zone':
 							const order = Number(brick.components.BCD_Interact.Message);
-							zones.push({pos: pos, size: brick.size, bias: 0, capturedBy: 'None', order: order, defCol: brick.color});
+							zones.push({pos: pos, size: brick.size, cap: [0,0], capturedBy: 'None', order: order, defCol: brick.color});
 							zoneInd.push({brInd: b, zInd: zones.length - 1});
 							//tl.push({p: pos, s: brick.size, c: brick.color});
 							break;
@@ -1890,6 +1914,7 @@ class TrenchWarfare {
 				if(online < 5) {
 					needed = online;
 				}
+				//console.log(online, needed, voted.length);
 				this.omegga.broadcast(clr.ylw + '<b>' + name + ' has voted to skip! ' + (needed - voted.length) + '  more people needed. Type ' + clr.dgrn + '/skip' + clr.ylw + ' to vote.</>');
 				if(voted.length == needed) {
 					this.omegga.broadcast(clr.ylw + '<b>Enough people have voted to skip the map!</>');
@@ -2032,6 +2057,7 @@ class TrenchWarfare {
 			}catch(e){console.log(e);}
 		})
 		.on('cmd:give', async (name, ...args) => {
+			try{
 			let amount = Number(args[0]);
 			if(amount < 0) {
 				this.omegga.whisper(name, clr.red + '<b>You cannot give negative trench.</>');
@@ -2049,10 +2075,15 @@ class TrenchWarfare {
 				this.omegga.whisper(name, clr.red + '<b>That player either isn\'t online or you have miss-spelled.</>');
 				return;
 			}
+			if(playerData[name] == null || playerData[reciever] == null) {
+				this.omegga.whisper(name, clr.red + '<b>Something has went wrong! Maybe try again?</>');
+				return;
+			}
 			const ownteam = playerData[name].team;
 			const recteam = playerData[reciever].team;
 			if(ownteam.name != recteam.name) {
 				this.omegga.whisper(name, clr.red + '<b>You cannot give trench to the enemy team.</>');
+				return;
 			}
 			const rinvi = blockinv.findIndex(i => i.player === reciever.id);
 			const oinvi = blockinv.findIndex(i => i.player === owninv.id);
@@ -2073,6 +2104,7 @@ class TrenchWarfare {
 			blockinv[oinvi] = oinv;
 			this.omegga.whisper(reciever.name,'<b>You gave ' + clr.rst + amount + '</> trench to ' + clr.ylw + reciever.name + '</>.</>');
 			this.omegga.whisper(reciever.name,'<b>' + clr.ylw + name + '</> has gave you ' + clr.rst + amount + '</> trench.</>');
+			}catch(e){console.log(e)}
 		})
 		.on('cmd:class', async (name, ...args) => {
 			const index = classlist.findIndex(cl => cl.player == name);
@@ -2153,7 +2185,8 @@ class TrenchWarfare {
 		if(minigame != null) {
 			
 			const teams = minigame.teams;
-			teamColors = [teams[0].color, teams[1].color];
+			teamColors = [teams.find(t => t.name == "RedTeam").color, teams.find(t => t.name == "BlueTeam").color];
+			//console.log(teamColors);
 		}
 		
 		await this.initmaps();
@@ -2180,12 +2213,12 @@ class TrenchWarfare {
 				return;
 			}
 			const teams = minigames[1].teams;
-			teamColors = [teams[0].color, teams[1].color];
+			teamColors = [teams.find(t => t.name == "RedTeam").color, teams.find(t => t.name == "BlueTeam").color];
 		}
 		}catch(e){console.log(e)}
 	}
 	
-	async placeGravestone(position, color) {
+	async placeGravestone(position, color, name) {
 		
 		//console.log(gravestoneBRS.bricks.findIndex(b => b.color === 2));
 		//console.log(gravestoneBRS.bricks);
@@ -2201,7 +2234,7 @@ class TrenchWarfare {
 		const roundZ = Math.round(position[2]);
 		this.omegga.loadSaveData({...gravestoneBRS, bricks: gravestone, brick_owners: owners}, {quiet: true, offX: roundX, offY: roundY, offZ: roundZ - 25});
 		
-		tl.push({p: [roundX, roundY, roundZ], s: [10,10,14], c: 0, ie: true});
+		tl.push({p: [roundX, roundY, roundZ], s: [10,10,14], c: 0, ie: true, gName: name});
 		
 		
 	}
@@ -2289,7 +2322,7 @@ class TrenchWarfare {
 					bluupd = true;
 				}
 			}
-			this.placeGravestone(playerPos, team.color);
+			this.placeGravestone(playerPos, team.color, plyr.name);
 		}
 		if(event === 'spawn') {
 			const player = await this.omegga.getPlayer(args[0].player.name);
@@ -2311,7 +2344,7 @@ class TrenchWarfare {
 				deadPlayerPos[0] = Math.round(deadPlayerPos[0] / 10) * 10;
 				deadPlayerPos[1] = Math.round(deadPlayerPos[1] / 10) * 10;
 				deadPlayerPos[2] = Math.round(deadPlayerPos[2]);
-				tl.splice(tl.indexOf(t => t.p.join('') == deadPlayerPos.join('')), 1);
+				tl.splice(tl.indexOf(t => t.gName == player.name), 1);
 				
 				deadPlayerPos[2] -= 11;
 				
