@@ -313,6 +313,7 @@ class TrenchWarfare {
 					blockinv[index].count = 0;
 				}
 				if(inv.count <= 0) {
+					this.omegga.middlePrint(player.name, "<b>Out of trench!</>");
 					return;
 				}
 				const n = hit.n;
@@ -1024,12 +1025,13 @@ class TrenchWarfare {
 					
 					zone.cap[0] += captureRate;
 					skipZone[z] = 0;
-					if(zone.cap[0] == 20) {
+					if(zone.cap[0] >= 20) {
 						zone.capturedBy = 'RedTeam';
 						this.omegga.broadcast('<b>' + clr.red + 'Red team</> has captured ' + clr.red + 'zone ' + zone.order + '!<>');
 						this.recalculatePoints();
 						this.replaceBrick(zone, teamColors[0]);
 						zone.cap[1] = 0;
+						zone.cap[0] = 20;
 					}
 					let redBias = clr.red + ('|').repeat(zone.cap[0] * 2) + '</>' + ('|').repeat(40 - zone.cap[0] * 2);
 					for(let p in playersInZone) {
@@ -1049,12 +1051,13 @@ class TrenchWarfare {
 					
 					zone.cap[1] += captureRate;
 					skipZone[z] = 1;
-					if(zone.cap[1] == 20) {
+					if(zone.cap[1] >= 20) {
 						zone.capturedBy = 'BlueTeam';
-						this.omegga.broadcast('<b>' + clr.blu + 'Red team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
+						this.omegga.broadcast('<b>' + clr.blu + 'Blue team</> has captured ' + clr.blu + 'zone ' + zone.order + '!<>');
 						this.recalculatePoints();
 						this.replaceBrick(zone, teamColors[1]);
 						zone.cap[0] = 0;
+						zone.cap[1] = 20;
 					}
 					let bluBias = clr.blu + ('|').repeat(zone.cap[1] * 2) + '</>' + ('|').repeat(40 - zone.cap[1] * 2);
 					for(let p in playersInZone) {
@@ -1755,9 +1758,11 @@ class TrenchWarfare {
 			
 			if(zone.order < centerZone) {
 				brick.color = teamColors[0];
+				zone.cap[0] = 20;
 			}
 			else if(zone.order > centerZone) {
 				brick.color = teamColors[1];
+				zone.cap[1] = 20;
 			}
 			
 		}
