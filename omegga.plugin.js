@@ -2212,7 +2212,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
 					this.omegga.whisper(name, '<b>Weapons: Classic assault rifle, Submachine gun, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
-					this.omegga.whisper(name, '<b>Weapons: Lever-action rifle, Pistol, Grenades.</>');
+					this.omegga.whisper(name, '<b>Weapons: Sniper rifle, Pistol, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
 					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potion, Impact Grenade.</>');
 					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
