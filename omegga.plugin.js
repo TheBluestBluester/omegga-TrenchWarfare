@@ -579,6 +579,11 @@ class TrenchWarfare {
 				newValue = newArray;
 				
 			}
+			else if(typeof newValue == 'object') {
+				
+				newValue = this.copyBrick(newValue);
+				
+			}
 			
 			newBrick[k] = newValue;
 			
