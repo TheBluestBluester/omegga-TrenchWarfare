@@ -1830,7 +1830,7 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.giveItem(weapons['sniper']);
+				plyr.giveItem(weapons['semi auto rifle']);
 				plyr.giveItem(weapons['pistol']);
 				break;
 			case 'trenchie':
@@ -1864,7 +1864,7 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.takeItem(weapons['sniper']);
+				plyr.takeItem(weapons['semi auto rifle']);
 				plyr.takeItem(weapons['pistol']);
 				break;
 			case 'trenchie':
@@ -2212,7 +2212,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
 					this.omegga.whisper(name, '<b>Weapons: Classic assault rifle, Submachine gun, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
-					this.omegga.whisper(name, '<b>Weapons: Sniper rifle, Pistol, Grenades.</>');
+					this.omegga.whisper(name, '<b>Weapons: Semi-auto rifle, Pistol, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
 					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potion, Impact Grenade.</>');
 					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
