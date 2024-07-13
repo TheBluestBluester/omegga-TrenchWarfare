@@ -1627,6 +1627,11 @@ class TrenchWarfare {
 		voted = [];
 		mapchoice = [];
 		zones = [];
+		
+		for(let l in lineBuild) {
+			lineBuild[l] = [];
+		}
+		
 		this.omegga.broadcast(clr.ylw +'<b>You have 15 seconds to ' + clr.rst + '/vote (1 - 4)' + clr.ylw + ' for a new map!</>');
 		
 		let mapsel = JSON.parse(JSON.stringify(maps));
@@ -1820,7 +1825,7 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.giveItem(weapons['lever action rifle']);
+				plyr.giveItem(weapons['sniper']);
 				plyr.giveItem(weapons['pistol']);
 				break;
 			case 'trenchie':
@@ -1854,7 +1859,7 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['smg']);
 				break;
 			case 'sniper':
-				plyr.takeItem(weapons['lever action rifle']);
+				plyr.takeItem(weapons['sniper']);
 				plyr.takeItem(weapons['pistol']);
 				break;
 			case 'trenchie':
@@ -2136,6 +2141,54 @@ class TrenchWarfare {
 					break;
 			}
 		})
+		.on('cmd:swtm', async name => {
+			
+			if(roundended) {
+				this.omegga.whisper(name, '<b>You cannot switch teams while the round is ended.</>');
+				return;
+			}
+			
+			const player = await this.omegga.getPlayer(name);
+			const team = playerData[name].team;
+			
+			const minigames = await this.omegga.getMinigames();
+			const minigameTeams = minigames[1].teams;
+			
+			const countR = minigameTeams.find(t => t.name == "RedTeam").members.length;
+			const countB = minigameTeams.find(t => t.name == "BlueTeam").members.length;
+			this.omegga.broadcast('<b>' + name + ' has switched teams!</>');
+			
+			//console.log(team, minigame);
+			if(team.name == "RedTeam") {
+				
+				if(countR - countB > 0) {
+					
+					player.setTeam(1);
+					
+				}
+				else {
+					
+					this.omegga.whisper(name, '<b>Cannot switch teams due to potential team inbalance.</>');
+					
+				}
+				
+			}
+			else {
+				
+				if(countB - countR > 0) {
+					
+					player.setTeam(0);
+					
+				}
+				else {
+					
+					this.omegga.whisper(name, '<b>Cannot switch teams due to potential team inbalance.</>');
+					
+				}
+				
+			}
+			
+		})
 		.on('cmd:trench', async (name, args) => {
 			this.omegga.whisper(name, clr.rst + '<size="30"><b><i>Trench warfare</>');
 			switch(args) {
@@ -2148,6 +2201,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>' + clr.dgrn + '/give </> gives trench to others. First you input the number, then the player.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + '/vote </> vote for the next map when the round is ended.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + '/lbt </> toggles line building.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + '/swtm </> quick switching between teams.</>');
 					break;
 				case 'classes':
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
@@ -2201,7 +2255,7 @@ class TrenchWarfare {
 			this.announceEnd();
 		}
 		flaginterval = setInterval(() => this.generalTick(), 500);
-		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote', 'lbt', 'trenchify', 'savemap', 'toggle', 'forceload'] };
+		return { registeredCommands: ['skip', 'class', 't','trench','give', 'vote', 'lbt', 'trenchify', 'savemap', 'toggle', 'forceload', 'swtm'] };
 	}
 	async loadminig() {
 		try{
