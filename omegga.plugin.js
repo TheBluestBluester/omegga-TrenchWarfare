@@ -2268,6 +2268,10 @@ class TrenchWarfare {
 		if(minigs.find(m => m.name === "Trench wars minigane") == null) {
 			const presetpath = this.omegga.presetPath;
 			console.log("Minigame is missing! Loading minigame...");
+			
+			if(!fs.existsSync(presetpath) + '/Minigame') { fs.mkdirSync(presetpath + '/Minigame', {recursive: true}); }
+			if(!fs.existsSync(presetpath) + '/Environment') { fs.mkdirSync(presetpath + '/Environment', {recursive: true}); }
+			
 			await fs.writeFile(presetpath + '/Minigame/TrenchMinigame.bp', tminig, (err, data) => {});
 			this.omegga.loadMinigame('TrenchMinigame', "1050c1b9-cedc-4d6a-8131-495819b04636");
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
