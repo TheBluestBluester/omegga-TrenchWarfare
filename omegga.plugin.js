@@ -24,6 +24,7 @@ let autoStart = true;
 
 let activeGrenades = [];
 let checkForGrenades = true;
+let explosionQueue = [];
 
 let trenchcolor = 44;
 let lowest = 0;
@@ -305,7 +306,7 @@ class TrenchWarfare {
 				return;
 			}
 			if(crouch) {
-				const hit = await this.Raycast(pos,size,ppos,playerRot,300,10);
+				const hit = await this.Raycast(pos,size,ppos,playerRot,300,11);
 				if(hit == false) {
 					return;
 				}
@@ -318,6 +319,7 @@ class TrenchWarfare {
 				}
 				const n = hit.n;
 				let posh = hit.h;
+				//console.log(n);
 				if(size[0] <= 10) {
 					posh = [pos[0] + n[0] * 20, pos[1] + n[1] * 20, pos[2] + n[2] * 20];
 				}
@@ -446,6 +448,7 @@ class TrenchWarfare {
 					
 					if(brickList.length === 0) {
 						this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
+						lineBuild[player.name] = [];
 						return;
 					}
 					
@@ -904,6 +907,7 @@ class TrenchWarfare {
 			newList.push({id: grenade, pos: pos});
 		}
 		activeGrenades = newList;
+		
 		}catch(e){
 			console.log(e);
 			this.checkTimeout(e);
@@ -1228,6 +1232,23 @@ class TrenchWarfare {
 			return distance <= r;
 			
 		}
+		function sphereSphereIntersect(p1, r1, p2, r2) {
+			
+			let relative = [
+				p2[0] - p1[0],
+				p2[1] - p1[1],
+				p2[2] - p1[2]
+			]
+			const length = Math.sqrt(
+				relative[0] ** 2 +
+				relative[1] ** 2 +
+				relative[2] ** 2
+			)
+			if(length < r1 + r2) { return true; }
+			
+			return false;
+			
+		}
 		function boxBoxIntersect(p1, s1, p2, s2) {
 			
 			let cSize = [
@@ -1255,6 +1276,16 @@ class TrenchWarfare {
 		//Math.abs(pos[2] - b.p[2]) < b.s[2] + radius * 1.2
 		
 		try {
+		
+		const explosionId = Math.floor(Math.random() * 1000);
+		
+		const intersectingExplosion = explosionQueue.find(e => sphereSphereIntersect(e.pos, e.radius, pos, radius));
+		if(intersectingExplosion) {
+			return;
+		}
+		
+		explosionQueue.push({id: explosionId, pos: pos, radius: radius});
+		
 		let affectedBricks = tl.filter(b => ((b.s[0] > 10 && sphereBoxIntersect(pos, radius, b.p, b.s)) || (b.s[0] == 10 && boxBoxIntersect(pos, [radius, radius, radius], b.p, b.s))) && !b.ie);
 		
 		let lower = [];
@@ -1278,7 +1309,7 @@ class TrenchWarfare {
 			let bricklist = [brick];
 			
 			if(brick.dontSubdivide) {
-				this.omegga.clearRegion({center: brick.p, extent: brick.s});
+				await this.omegga.clearRegion({center: brick.p, extent: brick.s});
 				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				continue;
@@ -1332,7 +1363,7 @@ class TrenchWarfare {
 			}
 			else {
 				
-				this.omegga.clearRegion({center: brick.p, extent: brick.s});
+				await this.omegga.clearRegion({center: brick.p, extent: brick.s});
 				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				
@@ -1384,7 +1415,7 @@ class TrenchWarfare {
 			}
 			if(brlist.length > 0) {
 				const toload = {...brsbrick, bricks: brlist, brick_owners: [trenchOwner]};
-				this.omegga.loadSaveData(toload, {quiet: true});
+				await this.omegga.loadSaveData(toload, {quiet: true});
 			}
 		}
 		
@@ -1406,10 +1437,14 @@ class TrenchWarfare {
 			//this.omegga.clearRegion({center: center, extent: extent});
 			this.omegga.writeln('Bricks.ClearRegion ' + center.join(' ') + ' ' + extent.join(' ') + ' 00000000-0000-0000-0000-000000000432');
 			if(toReload.length > 0) {
-				this.omegga.loadSaveData({...brsbrick, bricks: toReload, brick_owners: [trenchOwner]}, {quiet: true});
+				await this.omegga.loadSaveData({...brsbrick, bricks: toReload, brick_owners: [trenchOwner]}, {quiet: true});
 			}
 			
 		}
+		
+		setTimeout(() => explosionQueue.splice(explosionQueue.findIndex(e => e.id == explosionId), 1), 1000);
+		
+		//console.log('test');
 		
 		}catch(e){
 			console.log(e)
@@ -1628,7 +1663,7 @@ class TrenchWarfare {
 		blutimout = -1;
 		redupd = true;
 		bluupd = true;
-		gracetime = 60;
+		gracetime = 1;
 		voted = [];
 		mapchoice = [];
 		zones = [];
@@ -2102,7 +2137,7 @@ class TrenchWarfare {
 			}
 			const rinvi = blockinv.findIndex(i => i.player === reciever.id);
 			const oinvi = blockinv.findIndex(i => i.player === owninv.id);
-			console.log(rinvi, oinvi);
+			//console.log(rinvi, oinvi);
 			if(rinvi === -1 || oinvi === -1) {
 				this.omegga.whisper(name, clr.red + '<b>Try again later.</>');
 				return;
