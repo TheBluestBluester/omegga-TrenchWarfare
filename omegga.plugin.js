@@ -1663,7 +1663,7 @@ class TrenchWarfare {
 		blutimout = -1;
 		redupd = true;
 		bluupd = true;
-		gracetime = 1;
+		gracetime = 60;
 		voted = [];
 		mapchoice = [];
 		zones = [];
