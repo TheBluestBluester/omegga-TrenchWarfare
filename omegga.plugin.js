@@ -24,7 +24,6 @@ let autoStart = true;
 
 let activeGrenades = [];
 let checkForGrenades = true;
-let explosionQueue = [];
 
 let trenchcolor = 44;
 let lowest = 0;
@@ -42,6 +41,7 @@ let weapons;
 let deadPlayers = {};
 let revivePos = {};
 let playerData = {};
+let grenadeProg = {};
 
 let mapchoice = [];
 
@@ -282,8 +282,11 @@ class TrenchWarfare {
 			if(timeout.includes(player.id)) {
 				return;
 			}
+			const clas = classlist.filter(cl => cl.player == player.name)[0];
 			timeout.push(player.id);
-			setTimeout(() => timeout.splice(timeout.indexOf(player.id),1), 200);
+			let timeoutTime = 200;
+			if(clas.class == "sniper") { timeoutTime = 400; }
+			setTimeout(() => timeout.splice(timeout.indexOf(player.id),1), timeoutTime);
 			let inv = blockinv.filter(inv => inv.player == data.player.id);
 			if(inv.length == 0) {
 				blockinv.push({player: player.id, count: 64});
@@ -300,13 +303,12 @@ class TrenchWarfare {
 			const size = data.brick_size;
 			const pos = data.position;
 			const blocksize = 10;
-			const clas = classlist.filter(cl => cl.player == player.name)[0];
 			const builder = (clas.class == 'trenchie');
 			if(playerRot == null) {
 				return;
 			}
 			if(crouch) {
-				const hit = await this.Raycast(pos,size,ppos,playerRot,300,11);
+				const hit = await this.Raycast(pos,size,ppos,playerRot,300,10);
 				if(hit == false) {
 					return;
 				}
@@ -319,7 +321,6 @@ class TrenchWarfare {
 				}
 				const n = hit.n;
 				let posh = hit.h;
-				//console.log(n);
 				if(size[0] <= 10) {
 					posh = [pos[0] + n[0] * 20, pos[1] + n[1] * 20, pos[2] + n[2] * 20];
 				}
@@ -448,7 +449,6 @@ class TrenchWarfare {
 					
 					if(brickList.length === 0) {
 						this.omegga.middlePrint(player.name, '<b>Failed to place.</>');
-						lineBuild[player.name] = [];
 						return;
 					}
 					
@@ -580,11 +580,6 @@ class TrenchWarfare {
 					
 				}
 				newValue = newArray;
-				
-			}
-			else if(typeof newValue == 'object') {
-				
-				newValue = this.copyBrick(newValue);
 				
 			}
 			
@@ -737,6 +732,26 @@ class TrenchWarfare {
 			if(pclass.class == 'machinegunner') {
 				if(await this.isCrouching(playerData[player.name].pawn)) {
 					player.heal(5);
+				}
+			}
+			if(pclass.class == 'grenadier') {
+				if(await this.isCrouching(playerData[player.name].pawn)) {
+					if(player.name in grenadeProg) {
+						grenadeProg[player.name]++;
+						if(grenadeProg[player.name] >= 24) {
+							grenadeProg[player.name] = 0;
+							player.giveItem(weapons['stick grenade']);
+						}
+					}
+					else {
+						grenadeProg[player.name] = 1;
+					}
+					this.omegga.middlePrint(player.name, '<b>' + clr.rst + ('|').repeat(grenadeProg[player.name]) + '</>' + ('|').repeat(24 - grenadeProg[player.name]));
+				}
+				else {
+					if(player.name in grenadeProg) {
+						delete grenadeProg[player.name];
+					}
 				}
 			}
 			if(pclass.class == 'medic') {
@@ -907,7 +922,6 @@ class TrenchWarfare {
 			newList.push({id: grenade, pos: pos});
 		}
 		activeGrenades = newList;
-		
 		}catch(e){
 			console.log(e);
 			this.checkTimeout(e);
@@ -1232,23 +1246,6 @@ class TrenchWarfare {
 			return distance <= r;
 			
 		}
-		function sphereSphereIntersect(p1, r1, p2, r2) {
-			
-			let relative = [
-				p2[0] - p1[0],
-				p2[1] - p1[1],
-				p2[2] - p1[2]
-			]
-			const length = Math.sqrt(
-				relative[0] ** 2 +
-				relative[1] ** 2 +
-				relative[2] ** 2
-			)
-			if(length < r1 + r2) { return true; }
-			
-			return false;
-			
-		}
 		function boxBoxIntersect(p1, s1, p2, s2) {
 			
 			let cSize = [
@@ -1276,16 +1273,6 @@ class TrenchWarfare {
 		//Math.abs(pos[2] - b.p[2]) < b.s[2] + radius * 1.2
 		
 		try {
-		
-		const explosionId = Math.floor(Math.random() * 1000);
-		
-		const intersectingExplosion = explosionQueue.find(e => sphereSphereIntersect(e.pos, e.radius, pos, radius));
-		if(intersectingExplosion) {
-			return;
-		}
-		
-		explosionQueue.push({id: explosionId, pos: pos, radius: radius});
-		
 		let affectedBricks = tl.filter(b => ((b.s[0] > 10 && sphereBoxIntersect(pos, radius, b.p, b.s)) || (b.s[0] == 10 && boxBoxIntersect(pos, [radius, radius, radius], b.p, b.s))) && !b.ie);
 		
 		let lower = [];
@@ -1309,7 +1296,7 @@ class TrenchWarfare {
 			let bricklist = [brick];
 			
 			if(brick.dontSubdivide) {
-				await this.omegga.clearRegion({center: brick.p, extent: brick.s});
+				this.omegga.clearRegion({center: brick.p, extent: brick.s});
 				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				continue;
@@ -1363,7 +1350,7 @@ class TrenchWarfare {
 			}
 			else {
 				
-				await this.omegga.clearRegion({center: brick.p, extent: brick.s});
+				this.omegga.clearRegion({center: brick.p, extent: brick.s});
 				//const tlind = tl.findIndex(b => b.p.join(' ') == brick.p.join(' '));
 				tl.splice(tlind, 1);
 				
@@ -1415,7 +1402,7 @@ class TrenchWarfare {
 			}
 			if(brlist.length > 0) {
 				const toload = {...brsbrick, bricks: brlist, brick_owners: [trenchOwner]};
-				await this.omegga.loadSaveData(toload, {quiet: true});
+				this.omegga.loadSaveData(toload, {quiet: true});
 			}
 		}
 		
@@ -1437,14 +1424,10 @@ class TrenchWarfare {
 			//this.omegga.clearRegion({center: center, extent: extent});
 			this.omegga.writeln('Bricks.ClearRegion ' + center.join(' ') + ' ' + extent.join(' ') + ' 00000000-0000-0000-0000-000000000432');
 			if(toReload.length > 0) {
-				await this.omegga.loadSaveData({...brsbrick, bricks: toReload, brick_owners: [trenchOwner]}, {quiet: true});
+				this.omegga.loadSaveData({...brsbrick, bricks: toReload, brick_owners: [trenchOwner]}, {quiet: true});
 			}
 			
 		}
-		
-		setTimeout(() => explosionQueue.splice(explosionQueue.findIndex(e => e.id == explosionId), 1), 1000);
-		
-		//console.log('test');
 		
 		}catch(e){
 			console.log(e)
@@ -1861,16 +1844,16 @@ class TrenchWarfare {
 		try{
 		switch(clas.class) {
 			case 'assault':
-				plyr.giveItem(weapons['classic assault rifle']);
-				plyr.giveItem(weapons['smg']);
+				plyr.giveItem(weapons['semi auto rifle']);
+				plyr.giveItem(weapons['shotgun']);
 				break;
 			case 'sniper':
-				plyr.giveItem(weapons['semi auto rifle']);
+				plyr.giveItem(weapons['sniper']);
 				plyr.giveItem(weapons['pistol']);
 				break;
 			case 'trenchie':
-				plyr.giveItem(weapons['tactical shotgun']);
-				plyr.giveItem(weapons['bullpup smg']);
+				plyr.giveItem(weapons['hunting shotgun']);
+				plyr.giveItem(weapons['pistol']);
 				plyr.giveItem(weapons['health potion']);
 				break;
 			case 'machinegunner':
@@ -1878,16 +1861,22 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['shotgun']);
 				break;
 			case 'medic':
-				plyr.giveItem(weapons['tactical shotgun']);
-				plyr.giveItem(weapons['bullpup smg']);
+				plyr.giveItem(weapons['hunting shotgun']);
+				plyr.giveItem(weapons['pistol']);
 				plyr.giveItem(weapons['health potion']);
 				plyr.giveItem(weapons['health potion']);
+				break;
+			case 'grenadier':
+				plyr.giveItem(weapons['health potion']);
+				plyr.giveItem(weapons['shotgun']);
+				plyr.giveItem(weapons['pistol']);
 				break;
 		}
 		plyr.giveItem(weapons['impact grenade']);
 		if(clas.class != 'trenchie' && clas.class != 'medic') {
 			plyr.giveItem(weapons['stick grenade']);
 		}
+		if(clas.class == 'grenadier') { plyr.takeItem(weapons['health potion']); } // Create empty slot.
 		}catch(e){console.log(e)}
 	}
 	
@@ -1895,16 +1884,16 @@ class TrenchWarfare {
 		try{
 		switch(clas.class) {
 			case 'assault':
-				plyr.takeItem(weapons['classic assault rifle']);
-				plyr.takeItem(weapons['smg']);
+				plyr.takeItem(weapons['semi auto rifle']);
+				plyr.takeItem(weapons['shotgun']);
 				break;
 			case 'sniper':
-				plyr.takeItem(weapons['semi auto rifle']);
+				plyr.takeItem(weapons['sniper']);
 				plyr.takeItem(weapons['pistol']);
 				break;
 			case 'trenchie':
-				plyr.takeItem(weapons['tactical shotgun']);
-				plyr.takeItem(weapons['bullpup smg']);
+				plyr.takeItem(weapons['hunting shotgun']);
+				plyr.takeItem(weapons['pistol']);
 				plyr.takeItem(weapons['health potion']);
 				break;
 			case 'machinegunner':
@@ -1912,10 +1901,15 @@ class TrenchWarfare {
 				plyr.takeItem(weapons['shotgun']);
 				break;
 			case 'medic':
-				plyr.takeItem(weapons['tactical shotgun']);
-				plyr.takeItem(weapons['bullpup smg']);
+				plyr.takeItem(weapons['hunting shotgun']);
+				plyr.takeItem(weapons['pistol']);
 				plyr.takeItem(weapons['health potion']);
 				plyr.takeItem(weapons['health potion']);
+				break;
+			case 'grenadier':
+				plyr.takeItem(weapons['shotgun']);
+				plyr.takeItem(weapons['Pistol']);
+				break;
 		}
 		plyr.takeItem(weapons['impact grenade']);
 		plyr.takeItem(weapons['stick grenade']);
@@ -2137,7 +2131,7 @@ class TrenchWarfare {
 			}
 			const rinvi = blockinv.findIndex(i => i.player === reciever.id);
 			const oinvi = blockinv.findIndex(i => i.player === owninv.id);
-			//console.log(rinvi, oinvi);
+			console.log(rinvi, oinvi);
 			if(rinvi === -1 || oinvi === -1) {
 				this.omegga.whisper(name, clr.red + '<b>Try again later.</>');
 				return;
@@ -2169,6 +2163,7 @@ class TrenchWarfare {
 				case 'trenchie':
 				case 'machinegunner':
 				case 'medic':
+				case 'grenadier':
 					//if(clas.class != 'trenchie') {
 						//classlist[index].upd = false;
 					//}
@@ -2177,7 +2172,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>Class has been set to: ' + clr.rst + args.join(' ').toLowerCase() + '</>. This class will be applied when you respawn.</>');
 					break;
 				default:
-					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner, medic</>');
+					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner, medic, grenadier</>');
 					break;
 			}
 		})
@@ -2245,18 +2240,21 @@ class TrenchWarfare {
 					break;
 				case 'classes':
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
-					this.omegga.whisper(name, '<b>Weapons: Classic assault rifle, Submachine gun, Grenades.</>');
+					this.omegga.whisper(name, '<b>Weapons: Semi-auto rifle, Pump shotgun, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
-					this.omegga.whisper(name, '<b>Weapons: Semi-auto rifle, Pistol, Grenades.</>');
+					this.omegga.whisper(name, '<b>Weapons: sniper, Pistol, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
-					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potion, Impact Grenade.</>');
+					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Pistol, Health Potion, Impact Grenade.</>');
 					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Machinegunner</>');
 					this.omegga.whisper(name, '<b>Weapons: Light Machine Gun, Pump Shotgun, Grenades.</>');
 					this.omegga.whisper(name, '<b>Abilities: Can heal faster when crouching.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Medic</>');
-					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Bullpup SMG, Health Potions.</>');
+					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Pistol, Health Potions.</>');
 					this.omegga.whisper(name, '<b>Abilities: When crouching the medic heals other teammates around them. Crouching near teammate gravestones revives the teammate.</>');
+					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Grenadier</>');
+					this.omegga.whisper(name, '<b>Weapons: Pump Shotgun, Pistol, Impact Grenade.</>');
+					this.omegga.whisper(name, '<b>Abilities: When crouching, you create a stick grenade.</>');
 					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll.</>');
 					break;
 				default:
@@ -2265,7 +2263,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>This server has 2 modes: Capture The Flag and Zone Control.</>');
 					this.omegga.whisper(name, '<b>In the CTF mode you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
 					this.omegga.whisper(name, '<b>In the ZC mode you stay inside the zones to capture them. You can only capture the zones if the previous zones have been already captured. That means you wont be able to capture zone 1/3 until you capture zone 2 and so on.</>');
-					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic) to change your class. The classes changes once you respawn. More info about classes can be found in /trench classes.</>');
+					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic/grenadier) to change your class. The classes changes once you respawn. More info about classes can be found in /trench classes.</>');
 					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 					break;
 				
@@ -2303,10 +2301,6 @@ class TrenchWarfare {
 		if(minigs.find(m => m.name === "Trench wars minigane") == null) {
 			const presetpath = this.omegga.presetPath;
 			console.log("Minigame is missing! Loading minigame...");
-			
-			if(!fs.existsSync(presetpath) + '/Minigame') { fs.mkdirSync(presetpath + '/Minigame', {recursive: true}); }
-			if(!fs.existsSync(presetpath) + '/Environment') { fs.mkdirSync(presetpath + '/Environment', {recursive: true}); }
-			
 			await fs.writeFile(presetpath + '/Minigame/TrenchMinigame.bp', tminig, (err, data) => {});
 			this.omegga.loadMinigame('TrenchMinigame', "1050c1b9-cedc-4d6a-8131-495819b04636");
 			this.omegga.loadEnvironmentData(JSON.parse(tenv));
