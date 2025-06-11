@@ -1847,10 +1847,10 @@ class TrenchWarfare {
 				plyr.giveItem(weapons['semi auto rifle']);
 				plyr.giveItem(weapons['shotgun']);
 				break;
-			case 'sniper':
-				plyr.giveItem(weapons['sniper']);
-				plyr.giveItem(weapons['pistol']);
-				break;
+			//case 'sniper':
+				//plyr.giveItem(weapons['sniper']);
+				//plyr.giveItem(weapons['pistol']);
+				//break;
 			case 'trenchie':
 				plyr.giveItem(weapons['hunting shotgun']);
 				plyr.giveItem(weapons['pistol']);
@@ -2159,7 +2159,7 @@ class TrenchWarfare {
 			}
 			switch(args.join(' ').toLowerCase()) {
 				case 'assault':
-				case 'sniper':
+				//case 'sniper':
 				case 'trenchie':
 				case 'machinegunner':
 				case 'medic':
@@ -2172,7 +2172,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>Class has been set to: ' + clr.rst + args.join(' ').toLowerCase() + '</>. This class will be applied when you respawn.</>');
 					break;
 				default:
-					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, sniper, trenchie, machinegunner, medic, grenadier</>');
+					this.omegga.whisper(name, clr.red + '<b>Invalid class name! Classes: assault, trenchie, machinegunner, medic, grenadier</>');
 					break;
 			}
 		})
@@ -2241,8 +2241,8 @@ class TrenchWarfare {
 				case 'classes':
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Assault</>');
 					this.omegga.whisper(name, '<b>Weapons: Semi-auto rifle, Pump shotgun, Grenades.</>');
-					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
-					this.omegga.whisper(name, '<b>Weapons: sniper, Pistol, Grenades.</>');
+					//this.omegga.whisper(name, '<b>' + clr.dgrn + 'Sniper</>');
+					//this.omegga.whisper(name, '<b>Weapons: sniper, Pistol, Grenades.</>');
 					this.omegga.whisper(name, '<b>' + clr.dgrn + 'Trenchie</>');
 					this.omegga.whisper(name, '<b>Weapons: Tactical shotgun, Pistol, Health Potion, Impact Grenade.</>');
 					this.omegga.whisper(name, '<b>Abilities: Placing trench takes half as much trench.</>');
@@ -2263,7 +2263,7 @@ class TrenchWarfare {
 					this.omegga.whisper(name, '<b>This server has 2 modes: Capture The Flag and Zone Control.</>');
 					this.omegga.whisper(name, '<b>In the CTF mode you capture flags. To take the flag you click on the flag. To capture the flag you click on the base under the flag of your team. If your team\'s flag got lost it will respawn after 40 seconds. During that time you can grab the flag and return it by clicking the flag base of your team.</>');
 					this.omegga.whisper(name, '<b>In the ZC mode you stay inside the zones to capture them. You can only capture the zones if the previous zones have been already captured. That means you wont be able to capture zone 1/3 until you capture zone 2 and so on.</>');
-					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/sniper/trenchie/machinegunner/medic/grenadier) to change your class. The classes changes once you respawn. More info about classes can be found in /trench classes.</>');
+					this.omegga.whisper(name, '<b>This also has classes! Type /class (assault/trenchie/machinegunner/medic/grenadier) to change your class. The classes changes once you respawn. More info about classes can be found in /trench classes.</>');
 					this.omegga.whisper(name, clr.ylw + '<b>PGup n PGdn to scroll. There is also /trench commands</>');
 					break;
 				
